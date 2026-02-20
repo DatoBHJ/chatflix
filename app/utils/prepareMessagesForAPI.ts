@@ -69,6 +69,12 @@ export function slimRunCodePayload(raw: unknown): AnyRecord {
     stdout: normalizeStringArray(payload.stdout),
     stderr: normalizeStringArray(payload.stderr),
     results: normalizedResults,
+    ...(typeof payload.offloadedOutputPath === 'string'
+      ? { offloadedOutputPath: payload.offloadedOutputPath }
+      : {}),
+    ...(typeof payload.offloadedOutputChars === 'number'
+      ? { offloadedOutputChars: payload.offloadedOutputChars }
+      : {}),
     ...(error ? { error } : {}),
     ...(typeof payload.toolCallId === 'string' ? { toolCallId: payload.toolCallId } : {}),
   };

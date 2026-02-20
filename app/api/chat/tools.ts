@@ -1599,6 +1599,7 @@ export function createRunPythonCodeTool(
   chatId: string,
   supabase: SupabaseClient
 ) {
+  const RUN_CODE_OUTPUT_OFFLOAD_CHARS = 20_000;
   const runCodeResults: any[] = [];
   // Track files already synced across multiple invocations within the same request
   // to prevent re-reporting the same files on every execution
@@ -1812,7 +1813,15 @@ export function createRunPythonCodeTool(
         } // end if (success)
         // ── End file sync ──
 
-        const payload: { success: boolean; stdout: string[]; stderr: string[]; results: unknown[]; error?: unknown } = {
+        const payload: {
+          success: boolean;
+          stdout: string[];
+          stderr: string[];
+          results: unknown[];
+          error?: unknown;
+          offloadedOutputPath?: string;
+          offloadedOutputChars?: number;
+        } = {
           success,
           stdout: [...stdout],
           stderr: [...stderr],
@@ -1822,13 +1831,52 @@ export function createRunPythonCodeTool(
 
         const stdoutStr = payload.stdout.join('\n');
         const stderrStr = payload.stderr.join('\n');
-        if (stdoutStr.length > 0) {
-          const truncated = truncateFileText(stdoutStr);
-          if (truncated.truncated) payload.stdout = [truncated.text];
-        }
-        if (stderrStr.length > 0) {
-          const truncated = truncateFileText(stderrStr);
-          if (truncated.truncated) payload.stderr = [truncated.text];
+        const combinedOutput = [
+          stdoutStr.length > 0 ? `=== STDOUT ===\n${stdoutStr}` : '',
+          stderrStr.length > 0 ? `=== STDERR ===\n${stderrStr}` : '',
+        ].filter(Boolean).join('\n\n');
+        const shouldOffloadOutput = combinedOutput.length > RUN_CODE_OUTPUT_OFFLOAD_CHARS;
+        if (shouldOffloadOutput) {
+          const outputPath = `${WORKSPACE_BASE}/run_python_output_${Date.now()}.txt`;
+          try {
+            await sandbox.files.write(outputPath, combinedOutput);
+            await addWorkspacePath(chatId, outputPath, supabase);
+            await saveWorkspaceFile(chatId, outputPath, combinedOutput, supabase);
+            alreadySyncedPaths.add(outputPath);
+            syncedFiles.push({
+              path: outputPath,
+              isText: true,
+              bytes: Buffer.byteLength(combinedOutput, 'utf8'),
+            });
+            dataStream.write({
+              type: 'data-run_code_files_synced',
+              id: `run-code-files-synced-offload-${Date.now()}`,
+              data: {
+                toolCallId,
+                files: [{
+                  path: outputPath,
+                  isText: true,
+                  bytes: Buffer.byteLength(combinedOutput, 'utf8'),
+                }],
+              },
+            });
+            payload.offloadedOutputPath = outputPath;
+            payload.offloadedOutputChars = combinedOutput.length;
+            payload.stdout = [
+              `[run_python_code] Large output (${combinedOutput.length} chars) was saved to ${outputPath}. Use read_file(path) to inspect full logs.`,
+            ];
+            payload.stderr = [];
+          } catch {
+            // If offload fails, keep previous truncate fallback behavior.
+            if (stdoutStr.length > 0) {
+              const truncated = truncateFileText(stdoutStr);
+              if (truncated.truncated) payload.stdout = [truncated.text];
+            }
+            if (stderrStr.length > 0) {
+              const truncated = truncateFileText(stderrStr);
+              if (truncated.truncated) payload.stderr = [truncated.text];
+            }
+          }
         }
         dataStream.write({
           type: 'data-run_code_complete',
@@ -1849,27 +1897,16 @@ export function createRunPythonCodeTool(
             }
           : undefined;
 
-        const BRIGHTDATA_RESULT_MAX_CHARS = 10_000;
-        const firstResult = results[0] as { text?: string; source?: string } | undefined;
-        const isBrightDataSuccess = success && firstResult?.source === 'brightdata_fallback';
-
-        let minimalPayload: { success: boolean; results: Array<{ summary: string; text?: string }>; error?: unknown };
-        if (isBrightDataSuccess && firstResult.text) {
-          const excerpt =
-            firstResult.text.length <= BRIGHTDATA_RESULT_MAX_CHARS
-              ? firstResult.text
-              : firstResult.text.slice(0, BRIGHTDATA_RESULT_MAX_CHARS) + '\n...[truncated]';
-          minimalPayload = {
-            success,
-            results: [
-              {
-                summary: 'BrightData fallback succeeded. HTML fetched. Parse matchCentreData from script tags and save as CSV.',
-                text: excerpt,
-              },
-            ],
-            ...(minimalError && { error: minimalError }),
-          };
-        } else if (!success) {
+        let minimalPayload: {
+          success: boolean;
+          stdout?: string[];
+          stderr?: string[];
+          results: Array<{ summary: string; text?: string }>;
+          offloadedOutputPath?: string;
+          offloadedOutputChars?: number;
+          error?: unknown;
+        };
+        if (!success) {
           const failureSummary =
             typeof minimalError?.value === 'string' && minimalError.value.length > 0
               ? `Run failed: ${minimalError.value}`
@@ -1879,10 +1916,24 @@ export function createRunPythonCodeTool(
             results: [{ summary: failureSummary.slice(0, 300) }],
             ...(minimalError && { error: minimalError }),
           };
+        } else if (payload.offloadedOutputPath) {
+          minimalPayload = {
+            success,
+            stdout: payload.stdout,
+            stderr: payload.stderr,
+            results: [{
+              summary: `Large output offloaded to ${payload.offloadedOutputPath}. Read with read_file(path) before concluding.`,
+            }],
+            offloadedOutputPath: payload.offloadedOutputPath,
+            offloadedOutputChars: payload.offloadedOutputChars,
+            ...(minimalError && { error: minimalError }),
+          };
         } else {
           minimalPayload = {
             success,
-            results: [{ summary: 'Output shown to user.' }],
+            stdout: payload.stdout,
+            stderr: payload.stderr,
+            results: [{ summary: 'Run succeeded. Use stdout/stderr for details.' }],
             ...(minimalError && { error: minimalError }),
           };
         }

@@ -3861,8 +3861,6 @@ export default function Canvas({
             <div className="p-4 space-y-3">
               <div className="text-xs text-(--muted)">
                 {browserObserveData.isStreaming ? 'Running' : (browserObserveData.success ? 'Success' : 'Failed')}
-                {browserObserveData.selectedAttempt ? ` · ${browserObserveData.selectedAttempt}` : ''}
-                {browserObserveData.attemptCount ? ` · ${browserObserveData.attemptCount} tries` : ''}
                 {typeof browserObserveData.htmlLength === 'number' ? ` · ${fileHelpers.formatFileSize(browserObserveData.htmlLength)} HTML` : ''}
               </div>
 

@@ -799,8 +799,29 @@ export async function processMessagesForAI(
           };
         }
         
-        // run_python_code 도구 결과: LLM 컨텍스트에서 제거하고 짧은 안내 문구만 남김.
+        // run_python_code 도구 결과: 전체 출력 재주입은 막되, 대용량 offload 경로는 유지.
         if (normalizedPart.type === 'tool-run_python_code' && normalizedPart.output) {
+          const output = normalizedPart.output as {
+            offloadedOutputPath?: unknown;
+            offloadedOutputChars?: unknown;
+          };
+          const offloadedOutputPath =
+            typeof output?.offloadedOutputPath === 'string'
+              ? output.offloadedOutputPath
+              : undefined;
+          const offloadedOutputChars =
+            typeof output?.offloadedOutputChars === 'number'
+              ? output.offloadedOutputChars
+              : undefined;
+          if (offloadedOutputPath) {
+            const sizeText = typeof offloadedOutputChars === 'number'
+              ? ` (${offloadedOutputChars} chars)`
+              : '';
+            return {
+              type: 'text',
+              text: `[run_python_code] Large output offloaded to ${offloadedOutputPath}${sizeText}. Use read_file(path) when needed.`,
+            };
+          }
           return {
             type: 'text',
             text: '[run_python_code] Output shown to user.',

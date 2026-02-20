@@ -2783,7 +2783,7 @@ const Message = memo(function MessageComponent({
                       {longPressActive && !isSelectionModeActive && createPortal(
                         <>
                           <div 
-                            className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-99999 overflow-hidden tool-selector"
+                            className="fixed w-56 chat-input-tooltip-backdrop rounded-2xl z-99999 overflow-hidden tool-selector"
                 style={{
                   // 하이브리드 접근: 메시지 근처 우선, 화면 벗어날 때만 하단 고정
                   ...(() => {
@@ -2940,7 +2940,7 @@ const Message = memo(function MessageComponent({
                                 onCopy(message);
                                 handleLongPressCancel();
                               }}
-                              className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
+                              className="flex items-center gap-3 px-5 transition-colors duration-150 rounded-xl tool-button"
                               style={{
                                 '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                                 '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -4203,7 +4203,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
           {longPressActive && !isSelectionModeActive && isAssistant && (overlayPhase === 'entering' || overlayPhase === 'active' || overlayPhase === 'exiting') && createPortal(
             <>
               <div 
-                className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-100000 overflow-hidden tool-selector"
+                className="fixed w-56 chat-input-tooltip-backdrop rounded-2xl z-100000 overflow-hidden tool-selector"
                 style={{
                   transform: overlayPhase === 'entering' ? 'translateY(8px)' : overlayPhase === 'exiting' ? 'translateY(-4px)' : 'translateY(0)',
                   opacity: (overlayPhase === 'entering' || overlayPhase === 'exiting') ? 0 : 1,
@@ -4437,7 +4437,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
                       handleLongPressCancel();
                     }}
                     disabled={isBookmarksLoading}
-                    className="flex items-center gap-3 px-5 pb-4 transition-colors duration-150 rounded-xl tool-button"
+                    className="flex items-center gap-3 px-5 transition-colors duration-150 rounded-xl tool-button"
                     style={{
                       '--hover-bg': 'color-mix(in srgb, var(--foreground) 3%, transparent)',
                       '--active-bg': 'color-mix(in srgb, var(--foreground) 5%, transparent)',
@@ -4525,12 +4525,14 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
           />
           {/* 드롭다운 메뉴 */}
           <div 
-            className="fixed w-48 chat-input-tooltip-backdrop rounded-2xl z-100000 overflow-hidden tool-selector desktop-avatar-menu"
+            className="fixed w-56 chat-input-tooltip-backdrop rounded-2xl z-100000 overflow-hidden tool-selector desktop-avatar-menu"
             style={{
               ...(() => {
                 if (!avatarRef.current) return { display: 'none' };
                 const rect = avatarRef.current.getBoundingClientRect();
-                const menuHeight = 260;
+                // Keep fallback height close to real menu size so "top" placement
+                // doesn't leave an excessive gap from the avatar.
+                const menuHeight = 220;
                 const margin = 16;
                 const viewportHeight = window.innerHeight;
                 const menuBottomMargin = 40;
@@ -4685,7 +4687,7 @@ part.type === 'text' && <MarkdownContent key={index} content={part.text} enableS
                   setShowActionsDesktop(false);
                 }}
                 disabled={isBookmarksLoading}
-                className="flex items-center gap-3 px-5 pb-4 rounded-xl tool-button"
+                className="flex items-center gap-3 px-5 rounded-xl tool-button"
                 style={{
                   WebkitTapHighlightColor: 'transparent',
                   WebkitTouchCallout: 'none',

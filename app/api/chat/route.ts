@@ -127,6 +127,42 @@ function enforcePayloadBudget(
   return trimmed;
 }
 
+/** API에 전달되는 메시지와 동일한 키/구조를 유지하고, 긴 문자열만 잘라 로그용 복사본 반환 */
+function messagesPayloadForLog(msgs: any[], maxStrLen = 500): any[] {
+  const truncatePart = (p: any): any => {
+    if (!p || typeof p !== 'object') return p;
+    const out = { ...p };
+    if (typeof out.text === 'string' && out.text.length > maxStrLen)
+      out.text = out.text.slice(0, maxStrLen) + '...[truncated]';
+    if (typeof out.args === 'string' && out.args.length > maxStrLen)
+      out.args = out.args.slice(0, maxStrLen) + '...[truncated]';
+    if (typeof out.result === 'string' && out.result.length > maxStrLen)
+      out.result = out.result.slice(0, maxStrLen) + '...[truncated]';
+    return out;
+  };
+  return msgs.map((m) => {
+    if (!m || typeof m !== 'object') return m;
+    const out: any = {};
+    for (const key of Object.keys(m)) {
+      const v = (m as any)[key];
+      if (key === 'content') {
+        if (typeof v === 'string')
+          out[key] = v.length > maxStrLen ? v.slice(0, maxStrLen) + '...[truncated]' : v;
+        else if (Array.isArray(v))
+          out[key] = v.map((p: any) => truncatePart(p));
+        else
+          out[key] = v;
+      } else if (key === 'parts') {
+        out[key] = Array.isArray(v) ? v.map((p: any) => truncatePart(p)) : v;
+      } else if (typeof v === 'string' && v.length > maxStrLen) {
+        out[key] = v.slice(0, maxStrLen) + '...[truncated]';
+      } else {
+        out[key] = v;
+      }
+    }
+    return out;
+  });
+}
 
 export async function POST(req: Request): Promise<Response> {
   const supabase = await createClient();
@@ -645,41 +681,11 @@ export async function POST(req: Request): Promise<Response> {
           // system prompt 로그
           // console.log('[API Request - Agent Mode] System prompt:', agentSystemPrompt);
 
-          // 🔍 DEBUG: 최종 전달 메시지 로그
-          console.log('[API Request - Agent Mode] Final messages being sent to AI:', {
-            chatId,
-            messageCount: finalMessagesForExecution.length,
-            compressedCount: compressedMessages.length,
-            messages: finalMessagesForExecution.map((m: any, idx: number) => {
-              let fullTextContent = '';
-              if (Array.isArray(m.parts)) {
-                fullTextContent = m.parts
-                  .filter((p: any) => p.type === 'text' && p.text)
-                  .map((p: any) => p.text)
-                  .join(' ');
-              } else if (Array.isArray(m.content)) {
-                fullTextContent = m.content
-                  .filter((p: any) => p.type === 'text' && p.text)
-                  .map((p: any) => p.text)
-                  .join(' ');
-              } else if (typeof m.content === 'string') {
-                fullTextContent = m.content;
-              }
-              const isSummary = fullTextContent.includes('[Previous Conversation Summary]');
-              // 요약 메시지는 전체 내용 출력, 그 외는 300자만
-              const displayContent = isSummary 
-                ? fullTextContent 
-                : (fullTextContent.slice(0, 300) + (fullTextContent.length > 300 ? '...' : ''));
-              return {
-                index: idx,
-                role: m.role,
-                isSummary,
-                content: displayContent || `[no text - content type: ${Array.isArray(m.content) ? 'array' : typeof m.content}]`,
-                contentLength: fullTextContent.length,
-                partsCount: Array.isArray(m.parts) ? m.parts.length : 0
-              };
-            })
-          });
+          // 🔍 DEBUG: API에 전달되는 메시지와 동일한 구조 (role, content/parts, toolCallId 등 그대로, 긴 문자열만 500자로 자름)
+          console.log(
+            '[API Request - Agent Mode] messages (실제 요청):',
+            JSON.stringify(messagesPayloadForLog(budgetedMessages), null, 2)
+          );
 
           // console.log('agentSystemPrompt', agentSystemPrompt);
           

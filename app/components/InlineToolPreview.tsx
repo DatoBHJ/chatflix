@@ -1121,14 +1121,11 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       return 'Observing…';
     }
     if (status === 'error') return toolResult?.error || 'Observation failed';
-    const attemptPart = toolResult?.selectedAttempt
-      ? `${toolResult.selectedAttempt} · ${toolResult?.attemptCount || 1} tries`
-      : (toolResult?.attemptCount ? `${toolResult.attemptCount} tries` : 'Captured');
     if (typeof toolResult?.htmlLength === 'number') {
       const htmlSize = fileHelpers.formatFileSize(toolResult.htmlLength);
-      return `${attemptPart} · ${htmlSize} HTML`;
+      return `Captured · ${htmlSize} HTML`;
     }
-    return attemptPart;
+    return 'Captured';
   }, [status, toolResult]);
 
   const diffBubbleClass = `diff-inline-preview${isLastBubble ? ' last-bubble' : ''}${isNoTail ? ' no-tail' : ''}`;

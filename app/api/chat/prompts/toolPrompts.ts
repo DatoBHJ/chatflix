@@ -578,6 +578,8 @@ Use these concepts to create or edit dynamic videos. Grok Imagine has strong ins
 - **Result interpretation**: use the latest tool payload (\`success\`, \`error\`, \`stdout/stderr\`, \`results\`) to judge outcome.
 - If output indicates failure, do not claim success. Retry only when a different approach is likely to help.
 - For extraction/scraping tasks, keep retries bounded and change approach meaningfully between attempts.
+- If the tool says large output was offloaded to a workspace file path, call \`read_file(path)\` on that path before concluding.
+- When iterative debugging is needed, prefer updating one rolling analysis file instead of creating many numbered debug files.
 
 **4. Memory Constraints**
 - The sandbox has **limited RAM (~512 MB)**. Keep this in mind when processing large files or images.
