@@ -190,6 +190,50 @@ const getNewsCacheKey = (filters: Filters, newsToken?: string) => {
   return `${filters.geo}|${filters.timeRange}|${newsToken}`
 }
 
+const sharedSummaryResponseCache = new Map<string, { summary: string; questions: string[] }>()
+const sharedInFlightSummaryRequests = new Set<string>()
+
+const getDeviceLanguage = () =>
+  typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown'
+
+const resolveLocationContext = ({
+  countries,
+  selectedCountry,
+  regionOptions,
+  selectedRegion,
+}: {
+  countries: CountryOption[]
+  selectedCountry: string
+  regionOptions: Array<{ geo_id: string; geo_description: string }>
+  selectedRegion: string
+}) => {
+  const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
+  const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
+  const locationLabel = regionLabel
+    ? `${countryLabel}, ${regionLabel}`
+    : countryLabel === 'Select country'
+    ? 'Global'
+    : countryLabel
+  const locationKey = selectedRegion || selectedCountry || 'global'
+  return { locationLabel, locationKey, countryLabel, regionLabel }
+}
+
+const buildSummaryRequestKey = ({
+  language,
+  geo,
+  timeRange,
+  newsToken,
+  query,
+  locationKey,
+}: {
+  language: string
+  geo: string
+  timeRange: string
+  newsToken?: string
+  query?: string
+  locationKey: string
+}) => [language, geo, timeRange, newsToken || '', query || '', locationKey].join('|')
+
 // ─────────────────────────────────────────────────────────────
 // Minimal Apple Style Components (iOS Settings Style)
 // ─────────────────────────────────────────────────────────────
@@ -289,9 +333,7 @@ export function GlassTrendsWidget({
   } = sharedState
   const lastFilterSignatureRef = useRef(lastFilterSignature)
   const previousCategoryRef = useRef(selectedCategory)
-  const lastSummaryTrendKeyRef = useRef<string | null>(null)
-  const summaryResponseCacheRef = useRef<Map<string, { summary: string; questions: string[] }>>(new Map())
-  const inFlightSummaryRequestsRef = useRef<Set<string>>(new Set())
+  const lastAutoSummaryRequestKeyRef = useRef<string | null>(null)
   const currentSummaryRequestKeyRef = useRef<string | null>(null)
   const summaryAbortControllerRef = useRef<AbortController | null>(null)
   useEffect(() => {
@@ -952,27 +994,23 @@ export function GlassTrendsWidget({
     const trend = filteredTrends[currentTrendIndex]
     if (!trend) return
 
-    // Calculate location string inline
-    const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
-    const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
-    const locString = regionLabel
-      ? `${countryLabel}, ${regionLabel}`
-      : countryLabel === 'Select country'
-      ? 'Global'
-      : countryLabel
+    const { locationLabel, locationKey } = resolveLocationContext({
+      countries,
+      selectedCountry,
+      regionOptions,
+      selectedRegion,
+    })
+    const summaryRequestKey = buildSummaryRequestKey({
+      language: getDeviceLanguage(),
+      geo: activeFilters?.geo || '',
+      timeRange: activeFilters?.timeRange || '',
+      newsToken: trend.news_token,
+      query: trend.query,
+      locationKey,
+    })
+    currentSummaryRequestKeyRef.current = summaryRequestKey
 
-    const deviceLang =
-      typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown'
-    const summaryRequestKey = [
-      deviceLang,
-      activeFilters?.geo || '',
-      activeFilters?.timeRange || '',
-      trend.news_token || '',
-      trend.query || '',
-      locString,
-    ].join('|')
-
-    const cached = summaryResponseCacheRef.current.get(summaryRequestKey)
+    const cached = sharedSummaryResponseCache.get(summaryRequestKey)
     if (cached?.summary) {
       setSummaryError(null)
       setSummaryLoading(false)
@@ -983,10 +1021,10 @@ export function GlassTrendsWidget({
       return
     }
 
-    if (inFlightSummaryRequestsRef.current.has(summaryRequestKey)) {
+    if (sharedInFlightSummaryRequests.has(summaryRequestKey)) {
       return
     }
-    inFlightSummaryRequestsRef.current.add(summaryRequestKey)
+    sharedInFlightSummaryRequests.add(summaryRequestKey)
 
     // Abort any in-flight summary request from previous trend
     summaryAbortControllerRef.current?.abort()
@@ -1019,7 +1057,7 @@ export function GlassTrendsWidget({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: trend.query,
-          location: locString,
+          location: locationLabel,
           news: newsList,
           categories: trend.categories || [],
           keywords: trend.keywords || [],
@@ -1097,7 +1135,7 @@ export function GlassTrendsWidget({
         }
 
         if (finalData.summary && summaryRequestKey === currentSummaryRequestKeyRef.current) {
-          summaryResponseCacheRef.current.set(summaryRequestKey, {
+          sharedSummaryResponseCache.set(summaryRequestKey, {
             summary: finalData.summary,
             questions: Array.isArray(finalData.questions) ? finalData.questions : [],
           })
@@ -1119,7 +1157,7 @@ export function GlassTrendsWidget({
         setSummaryLoading(false)
       }
     } finally {
-      inFlightSummaryRequestsRef.current.delete(summaryRequestKey)
+      sharedInFlightSummaryRequests.delete(summaryRequestKey)
     }
   }, [filteredTrends, currentTrendIndex, activeFilters, newsCache, countries, selectedCountry, regionOptions, selectedRegion, setSharedState])
 
@@ -1129,21 +1167,20 @@ export function GlassTrendsWidget({
     const trend = filteredTrends[currentTrendIndex]
     if (!trend || !summaryContent) return
     
-    const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
-    const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
-    const locString = regionLabel 
-      ? `${countryLabel}, ${regionLabel}`
-      : countryLabel === 'Select country' 
-      ? 'Global' 
-      : countryLabel
-    const followUpRequestKey = [
-      typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown',
-      activeFilters?.geo || '',
-      activeFilters?.timeRange || '',
-      trend.news_token || '',
-      trend.query || '',
-      locString,
-    ].join('|')
+    const { locationLabel, locationKey } = resolveLocationContext({
+      countries,
+      selectedCountry,
+      regionOptions,
+      selectedRegion,
+    })
+    const followUpRequestKey = buildSummaryRequestKey({
+      language: getDeviceLanguage(),
+      geo: activeFilters?.geo || '',
+      timeRange: activeFilters?.timeRange || '',
+      newsToken: trend.news_token,
+      query: trend.query,
+      locationKey,
+    })
     
     setIsQALoading(true)
     setQaError(null)
@@ -1163,7 +1200,7 @@ export function GlassTrendsWidget({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: trend.query,
-          location: locString,
+          location: locationLabel,
           news: newsList,
           categories: trend.categories || [],
           keywords: trend.keywords || [],
@@ -1467,28 +1504,22 @@ export function GlassTrendsWidget({
   useEffect(() => {
     if (!currentTrend) return
 
-    const trendKey = `${currentTrendIndex}-${lastFilterSignature}`
-    if (lastSummaryTrendKeyRef.current === trendKey) return
-    lastSummaryTrendKeyRef.current = trendKey
-
-    const countryLabel = countries.find((c) => c.country_id === selectedCountry)?.country_name || 'Select country'
-    const regionLabel = regionOptions.find((r) => r.geo_id === selectedRegion)?.geo_description || ''
-    const locString = regionLabel
-      ? `${countryLabel}, ${regionLabel}`
-      : countryLabel === 'Select country'
-      ? 'Global'
-      : countryLabel
-
-    const deviceLang =
-      typeof navigator !== 'undefined' && navigator.language ? navigator.language.split('-')[0].toLowerCase() : 'unknown'
-    const summaryRequestKey = [
-      deviceLang,
-      activeFilters?.geo || '',
-      activeFilters?.timeRange || '',
-      currentTrend.news_token || '',
-      currentTrend.query || '',
-      locString,
-    ].join('|')
+    const { locationKey } = resolveLocationContext({
+      countries,
+      selectedCountry,
+      regionOptions,
+      selectedRegion,
+    })
+    const summaryRequestKey = buildSummaryRequestKey({
+      language: getDeviceLanguage(),
+      geo: activeFilters?.geo || '',
+      timeRange: activeFilters?.timeRange || '',
+      newsToken: currentTrend.news_token,
+      query: currentTrend.query,
+      locationKey,
+    })
+    if (lastAutoSummaryRequestKeyRef.current === summaryRequestKey) return
+    lastAutoSummaryRequestKeyRef.current = summaryRequestKey
 
     // Abort any in-flight summary from previous trend so stale responses don't overwrite
     summaryAbortControllerRef.current?.abort()
@@ -1496,7 +1527,7 @@ export function GlassTrendsWidget({
 
     // If we already have a cached summary for this exact trend+filters+device language,
     // render it immediately and do not re-request.
-    const cached = summaryResponseCacheRef.current.get(summaryRequestKey)
+    const cached = sharedSummaryResponseCache.get(summaryRequestKey)
     if (cached?.summary) {
       setSummaryError(null)
       setSummaryLoading(false)
@@ -1509,18 +1540,20 @@ export function GlassTrendsWidget({
       return
     }
 
-    setSharedState({
-      conversationHistory: [],
-      summaryContent: '',
-      summaryQuestions: [],
-    })
+    if (sharedInFlightSummaryRequests.has(summaryRequestKey)) {
+      // Another widget instance is already requesting this exact summary.
+      // Keep local loading off to avoid a stuck "Generating summary..." state.
+      setSummaryLoading(false)
+      setSummaryError(null)
+      setSharedState({ conversationHistory: [] })
+      void loadTrendNews(currentTrend)
+      return
+    }
 
     void loadTrendNews(currentTrend)
     void handleGenerateSummary()
   }, [
     currentTrend,
-    currentTrendIndex,
-    lastFilterSignature,
     activeFilters?.geo,
     activeFilters?.timeRange,
     loadTrendNews,
@@ -2263,8 +2296,9 @@ export function GlassTrendsWidget({
                 </div>
               </div>
             ) : (
-              <div className="py-8 text-center bg-white/5 border border-white/10 rounded-[24px]">
-                <p className="text-sm text-white/60">Summary will appear here shortly.</p>
+              <div className="flex items-center justify-center py-10 gap-2 bg-white/5 border border-white/10 rounded-[24px]">
+                <Loader2 size={18} className="animate-spin text-white/60" />
+                <span className="text-white/60 text-sm">Generating summary...</span>
               </div>
             )}
           </div>
