@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import { X } from 'lucide-react';
@@ -23,6 +23,50 @@ export function ThoughtProcessModal({
 }: ThoughtProcessModalProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const shouldAutoScrollRef = useRef(true);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartY, setDragStartY] = useState(0);
+  const [currentTranslateY, setCurrentTranslateY] = useState(0);
+
+  const handleClose = useCallback(() => {
+    if (isMobile) {
+      setTimeout(() => onClose(), 300);
+    } else {
+      onClose();
+    }
+  }, [isMobile, onClose]);
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile) return;
+    setIsDragging(true);
+    setDragStartY(e.touches[0].clientY);
+    setCurrentTranslateY(0);
+  }, [isMobile]);
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || !isDragging) return;
+    e.preventDefault();
+    const currentY = e.touches[0].clientY;
+    const diff = currentY - dragStartY;
+    if (diff > 0) setCurrentTranslateY(diff);
+  }, [isMobile, isDragging, dragStartY]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (!isMobile || !isDragging) return;
+    setIsDragging(false);
+    if (currentTranslateY > 100) {
+      handleClose();
+    } else {
+      setCurrentTranslateY(0);
+    }
+  }, [isMobile, isDragging, currentTranslateY, handleClose]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsDragging(false);
+      setCurrentTranslateY(0);
+    }
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen && scrollContainerRef.current) {
@@ -58,7 +102,7 @@ export function ThoughtProcessModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [isOpen, onClose]);
 
-  const handleBackdropClick = () => onClose();
+  const handleBackdropClick = () => handleClose();
 
   if (!isOpen) return null;
 
@@ -106,6 +150,8 @@ export function ThoughtProcessModal({
             style={{
               height: 'calc(100vh - 120px)',
               maxHeight: 'calc(100vh - 120px)',
+              transform: `translateY(${currentTranslateY}px)`,
+              transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)',
               ...getAdaptiveGlassStyleBlur(),
               backgroundColor:
                 typeof window !== 'undefined' &&
@@ -120,8 +166,14 @@ export function ThoughtProcessModal({
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-center pt-4 pb-4 shrink-0">
-              <div className="w-12 h-1.5 rounded-full mx-auto" style={{ backgroundColor: 'rgba(209, 213, 219, 0.3)' }} />
+            <div
+              className="text-center pt-4 pb-2 shrink-0"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              style={{ touchAction: 'none', cursor: 'grab' }}
+            >
+              <div className="w-12 h-1.5 rounded-full mx-auto transition-colors duration-200" style={{ backgroundColor: isDragging ? 'rgba(156, 163, 175, 0.4)' : 'rgba(209, 213, 219, 0.3)' }} />
             </div>
             <div className="relative flex items-center justify-center py-6 px-6 shrink-0">
               <h2 className="text-2xl font-bold truncate" style={{ color: 'var(--foreground)', maxWidth: 'calc(100vw - 48px)' }}>
