@@ -1,6 +1,5 @@
-import React, { useCallback, useMemo, useEffect } from 'react';
-import { Brain as BrainIOS } from 'react-ios-icons';
-import { ReasoningSection } from './ReasoningSection';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
+import { ThoughtProcessModal } from './ThoughtProcessModal';
 
 // Shimmer animation styles
 const shimmerStyles = `
@@ -284,11 +283,36 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
     };
   }, [loadingReasoningKey, completeReasoningKey, setReasoningPartExpanded, userOverrideReasoningPartRef]);
 
-  const handleToggleClick = useCallback(() => {
-    handleReasoningToggle(!isReasoningExpanded);
-  }, [handleReasoningToggle, isReasoningExpanded]);
+  const [showThoughtProcessModal, setShowThoughtProcessModal] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  const dynamicReasoningTitle = 'Reasoning Process';
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  const handleOpenModal = useCallback(() => {
+    setShowThoughtProcessModal(true);
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    setShowThoughtProcessModal(false);
+  }, []);
+
+  // Extract last (most recent) bold/header from content for preview title - updates as stream progresses
+  const dynamicReasoningTitle = useMemo(() => {
+    const text = (reasoningPart?.reasoningText || reasoningPart?.text || '').trim();
+    if (!text) return 'Thought Process';
+    // ## or ### headers - take the last one
+    const headerMatches = [...text.matchAll(/^#{1,6}\s+(.+?)(?:\n|$)/gm)];
+    if (headerMatches.length > 0) return headerMatches[headerMatches.length - 1][1].trim();
+    // **bold** at start of line - take the last one
+    const boldMatches = [...text.matchAll(/^\*\*(.+?)\*\*/gm)];
+    if (boldMatches.length > 0) return boldMatches[boldMatches.length - 1][1].trim();
+    return 'Thought Process';
+  }, [reasoningPart?.reasoningText, reasoningPart?.text]);
 
   const hasReasoning = reasoningPart && isAssistant;
 
@@ -299,70 +323,46 @@ export const UnifiedInfoPanel: React.FC<UnifiedInfoPanelProps> = ({
   return (
     <>
       <style>{shimmerStyles}</style>
-      <div className="pl-0 mb-2">
-      <div className="pb-2 sm:pb-2 pr-8 sm:pr-0">
-        {hasReasoning && (
-          <div className="mt-12  text-base text-[var(--muted)]">
-            {hasReasoning && (
-              <div className="mb-8">
-                <div className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5">Thinking</div>
-                <div className="space-y-3 pl-2">
+      <div className="pl-0 mb-1">
+        <div className="pb-1 pr-8 sm:pr-0">
+          {hasReasoning && (
+            <div className="mt-4 text-base text-(--muted)">
+              <div className="mb-2">
+                <div className="space-y-2 pl-2">
                   <button
-                    onClick={handleToggleClick}
-                    className="flex items-center gap-2 cursor-pointer group"
+                    onClick={handleOpenModal}
+                    className="flex items-center gap-2 cursor-pointer group text-(--muted) hover:text-(--foreground) transition-colors w-full text-left"
                   >
-                    <div className="text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors">
-                      <BrainIOS className="w-5 h-5" />
-                    </div>
-                    
                     <span
-                      className={`text-base font-medium text-[var(--foreground)] flex items-center gap-2 ${
+                      className={`text-base font-normal flex items-center gap-2 ${
                         isReasoningInProgress
-                          ? 'bg-gradient-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
+                          ? 'bg-linear-to-r from-transparent via-gray-400 to-transparent bg-clip-text text-transparent'
                           : ''
                       }`}
                       style={
                         isReasoningInProgress
-                          ? {
-                              backgroundSize: '200% 100%',
-                              animation: 'shimmer 2s ease-in-out infinite'
-                            }
+                          ? { backgroundSize: '200% 100%', animation: 'shimmer 2s ease-in-out infinite' }
                           : {}
                       }
                     >
                       {dynamicReasoningTitle}
-                      <svg
-                        className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                          isReasoningExpanded ? 'rotate-180' : ''
-                        }`}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <polyline points="6 9 12 15 18 9" />
-                      </svg>
+                      <span className="shrink-0" aria-hidden="true">›</span>
                     </span>
                   </button>
-                  <div className="pl-1.5">
-                    <ReasoningSection
-                      content={reasoningPart.reasoningText || reasoningPart.text}
-                      isComplete={reasoningComplete}
-                      hideToggle={true}
-                      isExpanded={isReasoningExpanded}
-                      onExpandedChange={handleReasoningToggle}
-                    />
-                  </div>
                 </div>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
 
-      </div>
+      <ThoughtProcessModal
+        isOpen={showThoughtProcessModal}
+        isMobile={isMobile}
+        content={reasoningPart.reasoningText || reasoningPart.text}
+        isComplete={reasoningComplete}
+        onClose={handleCloseModal}
+      />
     </>
   );
 };

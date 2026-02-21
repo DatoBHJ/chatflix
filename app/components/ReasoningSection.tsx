@@ -64,39 +64,30 @@ function ReasoningSectionComponent({
   return (
     <div className="my-0 text-sm font-sans max-w-[85%] md:max-w-[75%] lg:max-w-[65%] xl:max-w-[60%]">
       {!hideToggle && (
-        <div className="pt-12 sm:pt-30 pb-8">
-          <div className="flex items-center gap-3">
+        <div className="pt-2 pb-3">
+          <button
+            onClick={toggleExpanded}
+            className="flex items-center gap-2 cursor-pointer text-base font-normal text-(--muted) hover:text-(--foreground) transition-colors"
+          >
             {!isComplete && (
               <div className="w-2 h-2 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full animate-pulse"></div>
             )}
-
-            <h2 className="text-3xl sm:text-3xl md:text-4xl font-semibold tracking-tight">
-              Thinking
-            </h2>
-          </div>
-          
-          <div className="mt-10 text-base text-[var(--muted)]">
-            <button
-              onClick={toggleExpanded}
-              className="mb-5 text-base font-normal text-[var(--muted)] pl-1.5 cursor-pointer hover:text-[var(--foreground)] transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                Reasoning Process
-                <svg
-                  className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  aria-hidden="true"
-                >
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </span>
-            </button>
-          </div>
+            <span className="flex items-center gap-2">
+              Thought Process
+              <svg
+                className={`w-3.5 h-3.5 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </span>
+          </button>
         </div>
       )}
 
