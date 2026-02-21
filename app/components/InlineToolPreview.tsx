@@ -783,6 +783,11 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       }
     }
     if (toolArgs.url) {
+      // link_reader: show full URL (truncate if too long)
+      if (toolName === 'link_reader') {
+        const url = String(toolArgs.url).trim();
+        return url.length > 80 ? url.slice(0, 77) + '...' : url;
+      }
       try {
         const domain = new URL(toolArgs.url).hostname.replace('www.', '');
         return domain;
@@ -800,7 +805,7 @@ export const InlineToolPreview = memo(function InlineToolPreview({
       return p.length > 40 ? p.slice(0, 40) + '…' : p;
     }
     return '';
-  }, [toolArgs]);
+  }, [toolArgs, toolName]);
 
   // 롱프레스와 클릭 구분을 위한 상태
   const [touchStartTime, setTouchStartTime] = useState<number>(0);
