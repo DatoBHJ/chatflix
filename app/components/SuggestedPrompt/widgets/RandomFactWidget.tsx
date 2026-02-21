@@ -11,6 +11,7 @@ interface RandomFactWidgetProps {
   isEditMode?: boolean;
   widgetId?: string;
   isFullscreen?: boolean;
+  onPromptClick?: (prompt: string) => void;
 }
 
 interface RandomFactData {
@@ -24,6 +25,7 @@ export function RandomFactWidget({
   isEditMode = false,
   widgetId,
   isFullscreen = false,
+  onPromptClick,
 }: RandomFactWidgetProps) {
   const [fact, setFact] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -251,13 +253,29 @@ export function RandomFactWidget({
               </p>
             </div>
           ) : (
-            <div className="w-full py-4">
+            <div className="w-full py-4 flex flex-col items-center gap-4">
               <p 
                 className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
                 style={getContentTextStyle()}
               >
                 {fact}
               </p>
+              {onPromptClick && (
+                <button
+                  type="button"
+                  onClick={() => onPromptClick('Is this true?: ' + fact)}
+                  className="shrink-0 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer"
+                  style={{
+                    ...getContentTextStyle(),
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                  }}
+                >
+                  Is this true?
+                </button>
+              )}
             </div>
           )}
         </div>

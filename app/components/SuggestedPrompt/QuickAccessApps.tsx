@@ -5338,6 +5338,12 @@ export function QuickAccessApps({ isDarkMode, user, onPromptClick, verticalOffse
     if (widget.id === 'onthisday-widget' && onPromptClick) {
       return <C {...commonProps} onPromptClick={onPromptClick} isFullscreen={isFullscreen} />;
     }
+    if (widget.id === 'random-fact-widget' && onPromptClick) {
+      return <C {...commonProps} onPromptClick={onPromptClick} />;
+    }
+    if (widget.id === 'daily-joke-widget' && onPromptClick) {
+      return <C {...commonProps} onPromptClick={onPromptClick} />;
+    }
     return <C {...commonProps} />;
   };
 

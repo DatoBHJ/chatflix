@@ -11,6 +11,7 @@ interface DailyJokeWidgetProps {
   isEditMode?: boolean;
   widgetId?: string;
   isFullscreen?: boolean;
+  onPromptClick?: (prompt: string) => void;
 }
 
 interface JokeData {
@@ -28,6 +29,7 @@ export function DailyJokeWidget({
   isEditMode = false,
   widgetId,
   isFullscreen = false,
+  onPromptClick,
 }: DailyJokeWidgetProps) {
   const [joke, setJoke] = useState<JokeData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -255,16 +257,32 @@ export function DailyJokeWidget({
               </p>
             </div>
           ) : joke.type === 'single' ? (
-            <div className="w-full py-4">
+            <div className="w-full py-4 flex flex-col items-center gap-4">
               <p 
                 className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
                 style={getContentTextStyle()}
               >
                 {joke.text || 'No joke available'}
               </p>
+              {onPromptClick && (
+                <button
+                  type="button"
+                  onClick={() => onPromptClick('Explain this joke: ' + (joke.text || ''))}
+                  className="shrink-0 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer"
+                  style={{
+                    ...getContentTextStyle(),
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                  }}
+                >
+                  Explain this joke
+                </button>
+              )}
             </div>
           ) : (
-            <div className="w-full space-y-3 py-4">
+            <div className="w-full space-y-3 py-4 flex flex-col items-center gap-4">
               <p 
                 className="text-base sm:text-md opacity-95 leading-relaxed font-medium text-center"
                 style={getContentTextStyle()}
@@ -277,6 +295,22 @@ export function DailyJokeWidget({
               >
                 {joke.delivery || ''}
               </p>
+              {onPromptClick && (
+                <button
+                  type="button"
+                  onClick={() => onPromptClick('Explain this joke: ' + ((joke.setup || '') + ' ' + (joke.delivery || '')).trim())}
+                  className="shrink-0 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200 hover:scale-[1.02] active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer"
+                  style={{
+                    ...getContentTextStyle(),
+                    background: 'rgba(255, 255, 255, 0.18)',
+                    border: '1px solid rgba(255, 255, 255, 0.25)',
+                    backdropFilter: 'blur(8px)',
+                    WebkitBackdropFilter: 'blur(8px)',
+                  }}
+                >
+                  Explain this joke
+                </button>
+              )}
             </div>
           )}
         </div>
