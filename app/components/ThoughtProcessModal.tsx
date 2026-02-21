@@ -209,11 +209,11 @@ export function ThoughtProcessModal({
                   Thought Process
                 </h2>
                 {!isComplete && (
-                  <div className="w-2 h-2 bg-gradient-to-r from-amber-400 to-amber-600 rounded-full animate-pulse ml-3" />
+                  <div className="w-2 h-2 bg-linear-to-r from-amber-400 to-amber-600 rounded-full animate-pulse ml-3" />
                 )}
               </div>
-              <div className="mt-12 ml-1 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)] p-6 max-h-[70vh] overflow-hidden flex flex-col">
-                <div ref={scrollContainerRef} className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden text-[var(--foreground)]/80 leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word', WebkitUserSelect: 'text', userSelect: 'text' }}>
+              <div className="mt-12 ml-1">
+                <div ref={scrollContainerRef} className="min-h-[200px] overflow-y-auto overflow-x-hidden text-(--foreground)/80 leading-relaxed" style={{ wordBreak: 'break-word', overflowWrap: 'break-word', WebkitUserSelect: 'text', userSelect: 'text' }}>
                   <div className="overflow-x-auto">
                     <ReactMarkdown components={markdownComponents}>{content || ''}</ReactMarkdown>
                   </div>
