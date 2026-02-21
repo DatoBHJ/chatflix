@@ -158,7 +158,13 @@ export async function GET(req: NextRequest) {
         if (!downloadUrl) {
           return NextResponse.json({ error: 'Binary file download URL could not be generated' }, { status: 500 });
         }
-        return NextResponse.json({ content: null, isBinary: true, downloadUrl, filename });
+        return NextResponse.json({
+          content: null,
+          isBinary: true,
+          downloadUrl,
+          filename,
+          ...(isTextFile(path) && { contentTooLong: true }),
+        });
       }
 
       return NextResponse.json({ content: recovered });
@@ -171,7 +177,13 @@ export async function GET(req: NextRequest) {
       if (!downloadUrl) {
         return NextResponse.json({ error: 'Binary file download URL could not be generated' }, { status: 500 });
       }
-      return NextResponse.json({ content: null, isBinary: true, downloadUrl, filename });
+      return NextResponse.json({
+        content: null,
+        isBinary: true,
+        downloadUrl,
+        filename,
+        ...(isTextFile(path) && { contentTooLong: true }),
+      });
     }
 
     return NextResponse.json({ content });

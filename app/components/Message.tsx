@@ -35,6 +35,7 @@ import { getRunCodeData, getBrowserObserveData } from '../hooks/toolFunction';
 import { getWebSearchResults, getGoogleSearchData } from '@/app/hooks/toolFunction';
 import { getAdaptiveGlassStyleBlur, getAdaptiveGlassBackgroundColor, getTextStyle, getInitialTheme } from '@/app/lib/adaptiveGlassStyle';
 import { UploadedImageChip } from '@/app/components/UploadedImageChip';
+import { UploadedFileChip } from '@/app/components/UploadedFileChip';
 
 
 interface MessageProps {
@@ -78,6 +79,7 @@ interface MessageProps {
   isGlobalLoading?: boolean
   imageMap?: { [key: string]: string }
   uploadedImageMetaMap?: { [key: string]: { url: string; filename: string } }
+  uploadedFileMetaMap?: { [key: string]: { url: string; filename: string; mediaType?: string } }
   videoMap?: { [key: string]: { url: string; size?: string } | string }
   linkMap?: { [key: string]: string }
   thumbnailMap?: { [key: string]: string }
@@ -124,22 +126,26 @@ function isReasoningComplete(message: any, isStreaming: boolean): boolean {
 
 type UserMessageSegment =
   | { type: 'text'; value: string }
-  | { type: 'uploaded_image'; id: string };
+  | { type: 'uploaded_image'; id: string }
+  | { type: 'uploaded_file'; id: string };
 
-function parseUserContentWithUploadedImages(content: string): UserMessageSegment[] {
+function parseUserContentWithUploadedMedia(content: string): UserMessageSegment[] {
   if (!content) return [];
-  if (!/uploaded_image_\d+/.test(content)) {
+  if (!/uploaded_image_\d+|uploaded_file_\d+/.test(content)) {
     return [{ type: 'text', value: content }];
   }
   const segments: UserMessageSegment[] = [];
   let lastIndex = 0;
-  const re = /uploaded_image_(\d+)/g;
+  const re = /(uploaded_image_\d+|uploaded_file_\d+)/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(content)) !== null) {
     if (m.index > lastIndex) {
       segments.push({ type: 'text', value: content.slice(lastIndex, m.index) });
     }
-    segments.push({ type: 'uploaded_image', id: m[0] });
+    segments.push({
+      type: m[0].startsWith('uploaded_image_') ? 'uploaded_image' : 'uploaded_file',
+      id: m[0],
+    });
     lastIndex = m.index + m[0].length;
   }
   if (lastIndex < content.length) {
@@ -195,6 +201,7 @@ function UserMessageContent({
 function UserMessageContentWithUploads({
   segments,
   uploadedImageMetaMap,
+  uploadedFileMetaMap,
   imageMap,
   showGradient,
   onClick,
@@ -203,6 +210,7 @@ function UserMessageContentWithUploads({
 }: {
   segments: UserMessageSegment[];
   uploadedImageMetaMap: { [key: string]: { url: string; filename: string } };
+  uploadedFileMetaMap: { [key: string]: { url: string; filename: string; mediaType?: string } };
   imageMap: { [key: string]: string };
   showGradient?: boolean;
   onClick?: () => void;
@@ -233,12 +241,17 @@ function UserMessageContentWithUploads({
             </React.Fragment>
           );
         }
-        const meta = uploadedImageMetaMap[seg.id];
-        const url = meta?.url ?? imageMap[seg.id];
-        const num = seg.id.replace(/^uploaded_image_/, '') || '1';
-        const label = `image ${num}`;
-        if (!url) return null;
-        return <React.Fragment key={idx}><UploadedImageChip url={url} label={label} className="my-0.5 mr-1" />{' '}</React.Fragment>;
+        if (seg.type === 'uploaded_image') {
+          const meta = uploadedImageMetaMap[seg.id];
+          const url = meta?.url ?? imageMap[seg.id];
+          const num = seg.id.replace(/^uploaded_image_/, '') || '1';
+          const label = `image ${num}`;
+          if (!url) return null;
+          return <React.Fragment key={idx}><UploadedImageChip url={url} label={label} className="my-0.5 mr-1" />{' '}</React.Fragment>;
+        }
+        const fileMeta = uploadedFileMetaMap[seg.id];
+        if (!fileMeta) return null;
+        return <React.Fragment key={idx}><UploadedFileChip filename={fileMeta.filename} className="my-0.5 mr-1" />{' '}</React.Fragment>;
       })}
       {showGradient && (
         <div 
@@ -413,6 +426,8 @@ const areMessagePropsEqual = (prevProps: any, nextProps: any) => {
     prevProps.onBookmarkToggle === nextProps.onBookmarkToggle &&
     // Map props는 참조 비교
     prevProps.imageMap === nextProps.imageMap &&
+    prevProps.uploadedImageMetaMap === nextProps.uploadedImageMetaMap &&
+    prevProps.uploadedFileMetaMap === nextProps.uploadedFileMetaMap &&
     prevProps.videoMap === nextProps.videoMap &&
     prevProps.linkMap === nextProps.linkMap &&
     prevProps.thumbnailMap === nextProps.thumbnailMap &&
@@ -471,6 +486,7 @@ const Message = memo(function MessageComponent({
   isGlobalLoading,
   imageMap = {},
   uploadedImageMetaMap = {},
+  uploadedFileMetaMap = {},
   videoMap = {},
   linkMap = {},
   thumbnailMap = {},
@@ -827,11 +843,11 @@ const Message = memo(function MessageComponent({
 
   const userMessageSegments = useMemo(() => {
     if (message.role !== 'user' || !userMessageDisplayContent) return null;
-    if (Object.keys(uploadedImageMetaMap).length === 0) return null;
-    const segments = parseUserContentWithUploadedImages(userMessageDisplayContent);
-    const hasUploadedImage = segments.some((s) => s.type === 'uploaded_image');
-    return hasUploadedImage ? segments : null;
-  }, [message.role, userMessageDisplayContent, uploadedImageMetaMap]);
+    if (Object.keys(uploadedImageMetaMap).length === 0 && Object.keys(uploadedFileMetaMap).length === 0) return null;
+    const segments = parseUserContentWithUploadedMedia(userMessageDisplayContent);
+    const hasUploadedMedia = segments.some((s) => s.type === 'uploaded_image' || s.type === 'uploaded_file');
+    return hasUploadedMedia ? segments : null;
+  }, [message.role, userMessageDisplayContent, uploadedImageMetaMap, uploadedFileMetaMap]);
 
   const bubbleRef = useRef<HTMLDivElement>(null);
   const aiBubbleRef = useRef<HTMLDivElement>(null);
@@ -1068,6 +1084,24 @@ const Message = memo(function MessageComponent({
   }, [message.parts]);
   
   const allAttachments = message.experimental_attachments || attachmentsFromParts;
+
+  const visibleUserAttachments = useMemo(() => {
+    const isUserMessage = message.role === 'user';
+    if (!isUserMessage) return allAttachments as any[];
+    const inlineUploadedFileCount = userMessageSegments?.filter((seg) => seg.type === 'uploaded_file').length || 0;
+    if (inlineUploadedFileCount === 0) return allAttachments as any[];
+
+    let filesToSkip = inlineUploadedFileCount;
+    return ((allAttachments as any[]) || []).filter((attachment: any) => {
+      const isImage = attachment?.contentType?.startsWith('image/') || attachment?.fileType === 'image';
+      if (isImage) return true;
+      if (filesToSkip > 0) {
+        filesToSkip -= 1;
+        return false;
+      }
+      return true;
+    });
+  }, [allAttachments, message.role, userMessageSegments]);
 
   // 편집 시작 시 기존 첨부파일들을 편집 상태로 복사
   useEffect(() => {
@@ -2685,7 +2719,7 @@ const Message = memo(function MessageComponent({
             ) : (
               <div ref={viewRef}>
                 <div className="flex flex-col items-end gap-1">
-                  {hasAttachments && (allAttachments as any[])!.map((attachment: any, index: number) => (
+                  {visibleUserAttachments.length > 0 && visibleUserAttachments.map((attachment: any, index: number) => (
                     <AttachmentPreview 
                       key={`${message.id}-att-${index}`} 
                       attachment={attachment} 
@@ -2764,6 +2798,7 @@ const Message = memo(function MessageComponent({
                           <UserMessageContentWithUploads
                             segments={userMessageSegments}
                             uploadedImageMetaMap={uploadedImageMetaMap}
+                            uploadedFileMetaMap={uploadedFileMetaMap}
                             imageMap={imageMap}
                             searchTerm={searchTerm}
                           />

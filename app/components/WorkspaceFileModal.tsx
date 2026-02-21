@@ -1,11 +1,19 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Copy, Download, X } from 'lucide-react';
+import { Copy, Download, Loader2, X } from 'lucide-react';
 
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle';
 import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
 import { resolveMediaPlaceholders, type VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
 import { CsvTable } from './CsvTable';
+
+const IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico']);
+
+function isImagePath(path: string | null): boolean {
+  if (!path) return false;
+  const ext = path.split('.').pop()?.toLowerCase();
+  return !!ext && IMAGE_EXTENSIONS.has(ext);
+}
 
 function getLanguageFromPath(path?: string): string {
   if (!path) return 'text';
@@ -40,7 +48,7 @@ export function WorkspaceFileModal({
   isMobile: boolean;
   path: string | null;
   content: string | null;
-  binaryInfo: { downloadUrl: string; filename: string } | null;
+  binaryInfo: { downloadUrl: string; filename: string; contentTooLong?: boolean } | null;
   loading: boolean;
   error: string | null;
   linkMap?: Record<string, string>;
@@ -94,6 +102,12 @@ export function WorkspaceFileModal({
 
   const isMarkdown = useMemo(() => !!path?.toLowerCase().endsWith('.md'), [path]);
   const filename = useMemo(() => (path ? (path.replace(/^.*[/\\]/, '') || 'file') : ''), [path]);
+
+  const isImage = useMemo(() => isImagePath(path), [path]);
+  const [imageLoadError, setImageLoadError] = useState(false);
+  useEffect(() => {
+    setImageLoadError(false);
+  }, [path, binaryInfo?.downloadUrl]);
 
   const resolvedDisplayContent = useMemo(() => {
     if (!content) return '';
@@ -223,12 +237,30 @@ export function WorkspaceFileModal({
                 {error && (
                   <div className="text-sm text-red-500">{error}</div>
                 )}
-                {!error && binaryInfo && (
-                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
-                    Binary file. Use Download to open the file.
+                {!error && loading && (
+                  <div className="flex items-center justify-center py-16" style={{ color: 'var(--foreground)' }}>
+                    <Loader2 className="w-8 h-8 animate-spin opacity-70" aria-hidden />
                   </div>
                 )}
-                {!error && !binaryInfo && content && (
+                {!error && !loading && binaryInfo && isImage && !imageLoadError && (
+                  <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+                    <img
+                      src={binaryInfo.downloadUrl}
+                      alt={filename}
+                      className="max-w-full w-full object-contain"
+                      style={{ display: 'block' }}
+                      onError={() => setImageLoadError(true)}
+                    />
+                  </div>
+                )}
+                {!error && !loading && binaryInfo && (!isImage || imageLoadError) && (
+                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
+                    {binaryInfo.contentTooLong
+                      ? 'Content is too long to display. Use Download to open the file.'
+                      : 'Binary file. Use Download to open the file.'}
+                  </div>
+                )}
+                {!error && !loading && !binaryInfo && content && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
                     {isCSV && csvRows && csvRows.length > 0 ? (
                       <CsvTable rows={csvRows} />
@@ -307,12 +339,30 @@ export function WorkspaceFileModal({
                 {error && (
                   <div className="text-sm text-red-500">{error}</div>
                 )}
-                {!error && binaryInfo && (
-                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
-                    Binary file. Use Download to open the file.
+                {!error && loading && (
+                  <div className="flex items-center justify-center py-24" style={{ color: 'var(--foreground)' }}>
+                    <Loader2 className="w-8 h-8 animate-spin opacity-70" aria-hidden />
                   </div>
                 )}
-                {!error && !binaryInfo && content && (
+                {!error && !loading && binaryInfo && isImage && !imageLoadError && (
+                  <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
+                    <img
+                      src={binaryInfo.downloadUrl}
+                      alt={filename}
+                      className="max-w-full w-full object-contain"
+                      style={{ display: 'block' }}
+                      onError={() => setImageLoadError(true)}
+                    />
+                  </div>
+                )}
+                {!error && !loading && binaryInfo && (!isImage || imageLoadError) && (
+                  <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
+                    {binaryInfo.contentTooLong
+                      ? 'Content is too long to display. Use Download to open the file.'
+                      : 'Binary file. Use Download to open the file.'}
+                  </div>
+                )}
+                {!error && !loading && !binaryInfo && content && (
                   <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
                     {isCSV && csvRows && csvRows.length > 0 ? (
                       <div className="overflow-x-auto rounded-lg border border-[color-mix(in_srgb,var(--foreground)_8%,transparent)] bg-(--muted/20)">
@@ -369,4 +419,8 @@ export function WorkspaceFileModal({
     document.body
   );
 }
+
+
+
+
 

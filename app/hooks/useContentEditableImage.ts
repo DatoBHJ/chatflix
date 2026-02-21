@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { getIcon } from 'material-file-icons';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -9,8 +10,14 @@ export interface InsertedImage {
   file: File;
 }
 
+export interface InsertedFileChip {
+  file: File;
+  label: string;
+}
+
 export function useContentEditableImage() {
   const [insertedImages, setInsertedImages] = useState<Map<string, InsertedImage>>(new Map());
+  const [insertedFileChips, setInsertedFileChips] = useState<Map<string, InsertedFileChip>>(new Map());
   const contentEditableRef = useRef<HTMLDivElement>(null);
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -270,6 +277,126 @@ export function useContentEditableImage() {
     }
   }, []);
 
+  const getFileChipLabel = useCallback((file: File) => {
+    return file.name;
+  }, []);
+
+  const escapeHtml = useCallback((value: string) => {
+    return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }, []);
+
+  const dispatchInputEvent = useCallback(() => {
+    if (!contentEditableRef.current) return;
+    contentEditableRef.current.dispatchEvent(new Event('input', { bubbles: true }));
+  }, []);
+
+  const removeFileChipFromContentEditable = useCallback((chipId: string) => {
+    if (!contentEditableRef.current) return;
+    const chip = contentEditableRef.current.querySelector(`[data-file-chip-id="${chipId}"]`);
+    if (!chip) return;
+    const trailingSpacer = chip.nextSibling;
+    if (trailingSpacer && trailingSpacer.nodeType === Node.TEXT_NODE && trailingSpacer.textContent === ' ') {
+      trailingSpacer.remove();
+    }
+    chip.remove();
+    setInsertedFileChips((prev) => {
+      const next = new Map(prev);
+      next.delete(chipId);
+      return next;
+    });
+    dispatchInputEvent();
+  }, [dispatchInputEvent]);
+
+  const insertFileChipIntoContentEditable = useCallback((file: File, providedChipId?: string) => {
+    if (!contentEditableRef.current) return { error: 'Input area not found.' };
+
+    const chipId = providedChipId || `file_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const label = getFileChipLabel(file);
+    const escapedLabel = escapeHtml(label);
+    const escapedTitle = escapeHtml(file.name);
+    const fileIconSvg = getIcon(file.name).svg;
+
+    setInsertedFileChips((prev) => {
+      const next = new Map(prev);
+      next.set(chipId, { file, label });
+      return next;
+    });
+
+    const chipHtml = `<span data-file-chip-id="${chipId}" contenteditable="false" style="display:inline-flex;align-items:center;gap:7px;vertical-align:middle;border-radius:9999px;overflow:hidden;flex-shrink:0;font-size:14px;line-height:1.2;color:var(--foreground);padding:4px 10px;background:var(--accent);max-width:100%;margin:0 4px 0 0;">
+<span style="width:1.25em;height:1.25em;min-width:1.25em;min-height:1.25em;overflow:hidden;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;">
+<span style="width:100%;height:100%;display:inline-flex;align-items:center;justify-content:center;">${fileIconSvg}</span>
+</span>
+<span title="${escapedTitle}" style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px;">${escapedLabel}</span>
+<span data-file-chip-remove="true" style="cursor:pointer;opacity:0.8;font-size:12px;line-height:1;padding-left:2px;">×</span>
+</span> `;
+
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      if (!range.collapsed) {
+        range.deleteContents();
+      }
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      document.execCommand('insertHTML', false, chipHtml);
+    } else {
+      const endRange = document.createRange();
+      endRange.selectNodeContents(contentEditableRef.current);
+      endRange.collapse(false);
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        sel.addRange(endRange);
+      }
+      document.execCommand('insertHTML', false, chipHtml);
+    }
+
+    const insertedChip = contentEditableRef.current.querySelector(`[data-file-chip-id="${chipId}"]`) as HTMLElement | null;
+    if (insertedChip) {
+      const removeButton = insertedChip.querySelector('[data-file-chip-remove="true"]');
+      if (removeButton) {
+        removeButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          removeFileChipFromContentEditable(chipId);
+          contentEditableRef.current?.focus();
+        });
+      }
+    }
+
+    contentEditableRef.current.focus();
+    dispatchInputEvent();
+    return { success: true, chipId };
+  }, [dispatchInputEvent, escapeHtml, getFileChipLabel, removeFileChipFromContentEditable]);
+
+  const syncFileChipsWithDOM = useCallback(() => {
+    if (!contentEditableRef.current) return;
+    const domChips = contentEditableRef.current.querySelectorAll('[data-file-chip-id]');
+    const domChipIds = new Set(
+      Array.from(domChips)
+        .map((chip) => chip.getAttribute('data-file-chip-id'))
+        .filter(Boolean) as string[]
+    );
+
+    setInsertedFileChips((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      for (const chipId of prev.keys()) {
+        if (!domChipIds.has(chipId)) {
+          next.delete(chipId);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   // Function to sync insertedImages map with DOM (call onInput)
   const syncImagesWithDOM = useCallback(() => {
     if (!contentEditableRef.current) return;
@@ -292,16 +419,19 @@ export function useContentEditableImage() {
     });
   }, []);
 
-  // Extract content from contentEditable with uploaded_image_N placeholders
-  const extractContentFromEditable = useCallback((startIndex: number = 1) => {
+  // Extract content from contentEditable with uploaded_image_N and uploaded_file_N placeholders
+  const extractContentFromEditable = useCallback((startImageIndex: number = 1, startFileIndex: number = 1) => {
     if (!contentEditableRef.current) {
-      return { text: '', imageFiles: [], imageOrder: [] };
+      return { text: '', imageFiles: [], imageOrder: [], fileFiles: [], fileOrder: [] };
     }
 
     const imageFiles: File[] = [];
     const imageOrder: string[] = [];
+    const fileFiles: File[] = [];
+    const fileOrder: string[] = [];
     let text = '';
-    let imageIndex = startIndex;
+    let imageIndex = startImageIndex;
+    let fileIndex = startFileIndex;
 
     const walker = document.createTreeWalker(
       contentEditableRef.current,
@@ -309,8 +439,11 @@ export function useContentEditableImage() {
       {
         acceptNode: (node) => {
           if (node.nodeType === Node.TEXT_NODE) return NodeFilter.FILTER_ACCEPT;
-          if (node.nodeType === Node.ELEMENT_NODE && 
-              (node as Element).tagName === 'IMG') return NodeFilter.FILTER_ACCEPT;
+          if (node.nodeType === Node.ELEMENT_NODE) {
+            const element = node as Element;
+            if (element.tagName === 'IMG') return NodeFilter.FILTER_ACCEPT;
+            if (element.hasAttribute('data-file-chip-id')) return NodeFilter.FILTER_ACCEPT;
+          }
           return NodeFilter.FILTER_SKIP;
         }
       }
@@ -319,18 +452,31 @@ export function useContentEditableImage() {
     let node;
     while (node = walker.nextNode()) {
       if (node.nodeType === Node.TEXT_NODE) {
+        const parentElement = (node as Text).parentElement;
+        if (parentElement?.closest('[data-file-chip-id]')) {
+          continue;
+        }
         const textContent = node.textContent || '';
         // Filter out zero-width spaces used for cursor positioning (empty text nodes are fine)
         const filteredText = textContent.replace(/\u200B/g, '');
         text += filteredText;
       } else if (node.nodeType === Node.ELEMENT_NODE) {
-        const img = node as HTMLImageElement;
-        const imageId = img.getAttribute('data-image-id');
+        const element = node as HTMLElement;
+        const imageId = element.getAttribute('data-image-id');
         if (imageId && insertedImages.has(imageId)) {
           const imageData = insertedImages.get(imageId)!;
           imageFiles.push(imageData.file);
           imageOrder.push(imageId);
           text += ` uploaded_image_${imageIndex++} `;
+          continue;
+        }
+
+        const fileChipId = element.getAttribute('data-file-chip-id');
+        if (fileChipId && insertedFileChips.has(fileChipId)) {
+          const fileChipData = insertedFileChips.get(fileChipId)!;
+          fileFiles.push(fileChipData.file);
+          fileOrder.push(fileChipId);
+          text += ` uploaded_file_${fileIndex++} `;
         }
       }
     }
@@ -338,16 +484,23 @@ export function useContentEditableImage() {
     return { 
       text: text.trim().replace(/\s+/g, ' '), 
       imageFiles, 
-      imageOrder 
+      imageOrder,
+      fileFiles,
+      fileOrder
     };
-  }, [insertedImages]);
+  }, [insertedImages, insertedFileChips]);
 
   return {
     insertedImages,
     setInsertedImages,
+    insertedFileChips,
+    setInsertedFileChips,
     contentEditableRef,
     insertImageIntoContentEditable,
+    insertFileChipIntoContentEditable,
+    removeFileChipFromContentEditable,
     syncImagesWithDOM,
+    syncFileChipsWithDOM,
     extractContentFromEditable
   };
 }

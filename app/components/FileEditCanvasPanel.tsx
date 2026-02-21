@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Copy, Download, X } from 'lucide-react';
+import { Copy, Download, Loader2, X } from 'lucide-react';
 import { getAdaptiveGlassStyleBlur } from '@/app/lib/adaptiveGlassStyle';
 import type { FileEditFileEntry } from '@/app/hooks/toolFunction';
 import { resolveMediaPlaceholders, type VideoMapValue } from '@/app/utils/resolveMediaPlaceholders';
@@ -109,7 +109,7 @@ export function FileEditCanvasPanel({
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [fullContent, setFullContent] = useState<string | null>(null);
-  const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
+  const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string; contentTooLong?: boolean } | null>(null);
   const [retryCount, setRetryCount] = useState(0);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -143,7 +143,27 @@ export function FileEditCanvasPanel({
       }
       const data = await res.json();
       if (data?.isBinary && data?.downloadUrl) {
-        setBinaryInfo({ downloadUrl: data.downloadUrl, filename: data.filename || entry.path.replace(/^.*\//, '') });
+        if (data.contentTooLong === true) {
+          try {
+            const longRes = await fetch(data.downloadUrl);
+            if (!longRes.ok) throw new Error();
+            const text = await longRes.text();
+            setFullContent(text);
+            setBinaryInfo(null);
+          } catch {
+            setBinaryInfo({
+              downloadUrl: data.downloadUrl,
+              filename: data.filename || entry.path.replace(/^.*\//, ''),
+              contentTooLong: true,
+            });
+            setFullContent(null);
+          }
+          return;
+        }
+        setBinaryInfo({
+          downloadUrl: data.downloadUrl,
+          filename: data.filename || entry.path.replace(/^.*\//, ''),
+        });
         setFullContent(null);
         return;
       }
@@ -251,7 +271,11 @@ export function FileEditCanvasPanel({
 
   const renderReadOrGrepBody = () => {
     if (loading) {
-      return <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>Loading file…</div>;
+      return (
+        <div className="flex items-center justify-center py-12" style={{ color: 'var(--foreground)' }}>
+          <Loader2 className="w-8 h-8 animate-spin opacity-70" aria-hidden />
+        </div>
+      );
     }
     if (syncing) {
       return <div className="text-sm text-(--muted) animate-pulse">Waiting for file to sync…</div>;
@@ -262,7 +286,9 @@ export function FileEditCanvasPanel({
     if (binaryInfo) {
       return (
         <div className="text-sm opacity-80" style={{ color: 'var(--foreground)' }}>
-          Binary file. Use Download to open the file.
+          {binaryInfo.contentTooLong
+            ? 'Content is too long to display. Use Download to open the file.'
+            : 'Binary file. Use Download to open the file.'}
         </div>
       );
     }

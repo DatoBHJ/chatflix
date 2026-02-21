@@ -1,5 +1,5 @@
 // app/components/chat/ChatInput/types.ts
-import { FormEvent, ReactNode } from 'react';
+import { FormEvent } from 'react';
 
 export interface ChatInputProps {
   input: string;
@@ -30,25 +30,7 @@ export interface ChatInputProps {
   hasBackgroundImage?: boolean;
 }
 
-export interface FilePreviewProps {
-  files: File[];
-  fileMap: Map<string, { file: File, url: string }>;
-  removeFile: (file: File) => void;
-}
-
-
-
-
-export interface FileUploadButtonProps {
-  filesCount: number;
-  onClick: () => void;
-}
-
 export interface FileHelpers {
   formatFileSize: (bytes: number) => string;
-  getFileIcon: (file: File) => ReactNode;
-  getFileTypeBadge: (file: File) => string;
-  isImageFile: (file: File) => boolean;
-  isTextFile: (file: File) => boolean;
   isPDFFile: (file: File) => boolean;
 }

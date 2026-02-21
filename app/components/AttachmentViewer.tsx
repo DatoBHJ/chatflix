@@ -82,7 +82,8 @@ export const AttachmentViewer: React.FC<AttachmentViewerProps> = ({ attachment }
                  attachment.contentType?.includes('typescript') ||
                  attachment.contentType?.includes('html') ||
                  attachment.contentType?.includes('css') ||
-                 (attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log)$/i.test(attachment.name));
+                 attachment.contentType === 'application/csv' ||
+                 (attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log|\.csv|\.tsv)$/i.test(attachment.name));
 
   if (isRefreshing) {
     return null;

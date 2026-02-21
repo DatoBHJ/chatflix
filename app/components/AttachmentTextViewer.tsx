@@ -1,8 +1,9 @@
 'use client'
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Attachment } from '@/lib/types';
 import { CanvasPreviewMarkdown } from './CanvasPreviewMarkdown';
+import { CsvTable } from './CsvTable';
 
 interface AttachmentTextViewerProps {
   attachment: Attachment;
@@ -84,7 +85,7 @@ export function AttachmentTextViewer({ attachment, url }: AttachmentTextViewerPr
         }
  
         const ct = response.headers.get('content-type') || attachment.contentType || '';
-        const looksText = ct.startsWith('text/') || ct.includes('json') || ct.includes('xml') || ct.includes('javascript') || ct.includes('typescript') || ct.includes('html') || ct.includes('css') || (!!attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log)$/i.test(attachment.name));
+        const looksText = ct.startsWith('text/') || ct.includes('json') || ct.includes('xml') || ct.includes('javascript') || ct.includes('typescript') || ct.includes('html') || ct.includes('css') || ct === 'application/csv' || (!!attachment.name && /(\.txt|\.md|\.js|\.jsx|\.ts|\.tsx|\.html|\.css|\.json|\.xml|\.py|\.java|\.c|\.cpp|\.cs|\.go|\.rb|\.php|\.swift|\.kt|\.rs|\.sql|\.sh|\.yml|\.yaml|\.toml|\.ini|\.cfg|\.conf|\.log|\.csv|\.tsv)$/i.test(attachment.name));
  
         if (!looksText) {
           // 바이너리 파일로 간주 (PDF 등)
@@ -115,7 +116,49 @@ export function AttachmentTextViewer({ attachment, url }: AttachmentTextViewerPr
   }, [url, attachment.url, attachment.name, attachment.contentType]);
  
   const language = getLanguageFromExtension(attachment.name);
- 
+  const isCSV = !!attachment.name?.toLowerCase().endsWith('.csv') || !!attachment.name?.toLowerCase().endsWith('.tsv');
+
+  /** Parse CSV/TSV into rows (handles quoted fields and "" escape). Same logic as WorkspaceFileModal. */
+  const csvRows = useMemo(() => {
+    if (!isCSV || !content) return null;
+    const isTsv = attachment.name?.toLowerCase().endsWith('.tsv');
+    const delimiter = isTsv ? '\t' : ',';
+    const lines = content.split(/\r?\n/);
+    const rows: string[][] = [];
+    for (const line of lines) {
+      const row: string[] = [];
+      let i = 0;
+      while (i < line.length) {
+        if (line[i] === '"') {
+          let cell = '';
+          i++;
+          while (i < line.length) {
+            if (line[i] === '"') {
+              if (line[i + 1] === '"') {
+                cell += '"';
+                i += 2;
+              } else {
+                i++;
+                break;
+              }
+            } else {
+              cell += line[i];
+              i++;
+            }
+          }
+          row.push(cell);
+        } else {
+          let end = line.indexOf(delimiter, i);
+          if (end === -1) end = line.length;
+          row.push(line.slice(i, end).trim());
+          i = end + 1;
+        }
+      }
+      rows.push(row);
+    }
+    return rows;
+  }, [isCSV, content, attachment.name]);
+
   // PDF 등 바이너리 파일에 대한 iframe 프리뷰 제공
   if (attachment.contentType === 'application/pdf' || attachment.name?.toLowerCase().endsWith('.pdf')) {
     return (
@@ -151,6 +194,15 @@ export function AttachmentTextViewer({ attachment, url }: AttachmentTextViewerPr
     );
   }
  
+  // CSV/TSV: 테이블로 표시 (WorkspaceFileModal과 동일)
+  if (isCSV && csvRows && csvRows.length > 0) {
+    return (
+      <div className="max-w-full w-full overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        <CsvTable rows={csvRows} />
+      </div>
+    );
+  }
+
   // WorkspaceFileModal과 동일: CanvasPreviewMarkdown 사용 (단일 코드 블록 시 TYPESCRIPT/COPY 헤더 제거)
   const isMarkdown = language === 'markdown';
   const markdownContent = isMarkdown

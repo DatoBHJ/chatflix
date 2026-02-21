@@ -2288,7 +2288,7 @@ function MarkdownContentComponent({
   // Workspace file modal state (chat file cards)
   const [workspaceFilePath, setWorkspaceFilePath] = useState<string | null>(null);
   const [workspaceFileContent, setWorkspaceFileContent] = useState<string | null>(null);
-  const [workspaceBinaryInfo, setWorkspaceBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
+  const [workspaceBinaryInfo, setWorkspaceBinaryInfo] = useState<{ downloadUrl: string; filename: string; contentTooLong?: boolean } | null>(null);
   const [workspaceFileLoading, setWorkspaceFileLoading] = useState(false);
   const [workspaceFileError, setWorkspaceFileError] = useState<string | null>(null);
   const workspaceFetchRef = useRef<AbortController | null>(null);
@@ -2379,6 +2379,20 @@ function MarkdownContentComponent({
       const data = await res.json();
       if (data?.isBinary && data?.downloadUrl) {
         const filename = (typeof data.filename === 'string' && data.filename) ? data.filename : path.replace(/^.*[/\\]/, '') || 'download';
+        if (data.contentTooLong === true) {
+          try {
+            const contentRes = await fetch(data.downloadUrl, { signal: controller.signal });
+            if (!contentRes.ok) throw new Error('Failed to fetch content');
+            const text = await contentRes.text();
+            if (controller.signal.aborted) return;
+            setWorkspaceFileContent(text);
+            setWorkspaceBinaryInfo(null);
+          } catch (contentErr: unknown) {
+            if (contentErr instanceof DOMException && contentErr.name === 'AbortError') return;
+            setWorkspaceBinaryInfo({ downloadUrl: data.downloadUrl, filename, contentTooLong: true });
+          }
+          return;
+        }
         setWorkspaceBinaryInfo({ downloadUrl: data.downloadUrl, filename });
         return;
       }

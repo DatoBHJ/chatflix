@@ -7,7 +7,7 @@ import 'react-tooltip/dist/react-tooltip.css';
 import { getModelById } from '@/lib/models/config';
 import { ChatInputProps } from './types';
 import { useChatInputStyles } from './ChatInputStyles';
-import { FilePreview, fileHelpers } from './FileUpload';
+import { fileHelpers } from './FileUpload';
 import { ErrorToast } from './DragDropOverlay';
 import { Search, Calculator, Link, Image, FileText, Plus, BarChart3, Building, BookOpen, Github, User, Youtube, Palette, Video, Info, Wrench, Code2, FolderOpen, Globe, MessageCircle } from 'lucide-react';
 import { SiGoogle, SiLinkedin } from 'react-icons/si';
@@ -153,9 +153,13 @@ export function ChatInput({
   const {
     insertedImages,
     setInsertedImages,
+    insertedFileChips,
+    setInsertedFileChips,
     contentEditableRef: inputRef,
     insertImageIntoContentEditable,
+    insertFileChipIntoContentEditable,
     syncImagesWithDOM,
+    syncFileChipsWithDOM,
     extractContentFromEditable
   } = useContentEditableImage();
 
@@ -174,7 +178,6 @@ export function ChatInput({
   
   // 상태 관리
   const [files, setFiles] = useState<File[]>([]);
-  const [fileMap, setFileMap] = useState<Map<string, { file: File, url: string }>>(new Map());
   const [showPDFError, setShowPDFError] = useState(false);
   const [showFolderError, setShowFolderError] = useState(false);
   const [showAgentError, setShowAgentError] = useState(false);
@@ -291,6 +294,18 @@ export function ChatInput({
 
     // Sync images with DOM
     syncImagesWithDOM();
+    syncFileChipsWithDOM();
+    if (inputRef.current) {
+      const chipIds = new Set(
+        Array.from(inputRef.current.querySelectorAll('[data-file-chip-id]'))
+          .map((chip) => chip.getAttribute('data-file-chip-id'))
+          .filter(Boolean) as string[]
+      );
+      setFiles((prevFiles) => prevFiles.filter((file) => {
+        const chipId = (file as any).fileChipId;
+        return !chipId || chipIds.has(chipId);
+      }));
+    }
 
     // 최소한의 처리만 - 복잡한 로직 모두 제거
     let content = inputRef.current.innerText || '';
@@ -311,7 +326,7 @@ export function ChatInput({
     handleInputChange({
       target: { value: content }
     } as any);
-  }, [handleInputChange, syncImagesWithDOM]);
+  }, [handleInputChange, syncImagesWithDOM, syncFileChipsWithDOM]);
 
   // 붙여넣기 이벤트 핸들러 - 성능 최적화 버전 + 이미지 지원
   const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
@@ -480,6 +495,7 @@ export function ChatInput({
       
       // Clear inserted images state
       setInsertedImages(new Map());
+      setInsertedFileChips(new Map());
 
       // 부모 상태 업데이트 (즉시)
       handleInputChange({
@@ -554,14 +570,49 @@ export function ChatInput({
     return imageCount + 1;
   }, [allMessages]);
 
+  const nextFileIndex = useMemo(() => {
+    if (!allMessages || allMessages.length === 0) return 1;
+
+    let fileCount = 0;
+
+    allMessages.forEach(msg => {
+      let partsCount = 0;
+      let expCount = 0;
+
+      if (msg.parts && Array.isArray(msg.parts)) {
+        msg.parts.forEach((part: any) => {
+          if (part.type === 'file' && !part.mediaType?.startsWith('image/')) {
+            partsCount++;
+          }
+        });
+      }
+
+      if (msg.experimental_attachments && Array.isArray(msg.experimental_attachments)) {
+        msg.experimental_attachments.forEach((attachment: any) => {
+          const isImage = attachment.contentType?.startsWith('image/') || attachment.fileType === 'image';
+          if (!isImage) expCount++;
+        });
+      }
+
+      fileCount += Math.max(partsCount, expCount);
+    });
+
+    return fileCount + 1;
+  }, [allMessages]);
+
   // 공통 메시지 제출 로직 (extractContentFromEditable 사용)
   const prepareMessageSubmission = useCallback(() => {
     // Extract content with uploaded_image_N placeholders
     // Pass nextImageIndex to ensure continuity with existing images
-    const { text: messageContent, imageFiles: extractedImageFiles } = extractContentFromEditable(nextImageIndex);
+    const {
+      text: messageContent,
+      imageFiles: extractedImageFiles,
+      fileFiles: extractedFileFiles,
+    } = extractContentFromEditable(nextImageIndex, nextFileIndex);
     
-    // 올바른 FileList 생성: extractedImageFiles (순서 보장) + 기존 files (PDF 등)
-    const snapshotFiles = [...extractedImageFiles, ...files];
+    // DOM 순서 기준 추출 파일이 있으면 우선 사용, 없으면 상태 files fallback
+    const orderedFileFiles = extractedFileFiles.length > 0 ? extractedFileFiles : files;
+    const snapshotFiles = [...extractedImageFiles, ...orderedFileFiles];
     
     const fileList = {
       length: snapshotFiles.length,
@@ -574,20 +625,19 @@ export function ChatInput({
     } as FileList;
 
     // 파일 상태 정리 (미리 스냅샷으로 전달했으므로 안전)
-    const urls = Array.from(fileMap.values()).map(({ url }) => url).filter(url => url.startsWith('blob:'));
     const inlineUrls = Array.from(insertedImages.values()).map(v => v.blobUrl);
     
     // 상태 클리어
     setFiles([]);
-    setFileMap(new Map());
     setInsertedImages(new Map());
+    setInsertedFileChips(new Map());
     
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
     
     // URL 리소스 해제
-    [...urls, ...inlineUrls].forEach(url => {
+    [...inlineUrls].forEach(url => {
       try { URL.revokeObjectURL(url); } catch {}
     });
 
@@ -595,7 +645,7 @@ export function ChatInput({
     clearInput();
 
     return { messageContent, fileList };
-  }, [extractContentFromEditable, files, fileMap, insertedImages, clearInput, nextImageIndex]);
+  }, [extractContentFromEditable, files, insertedImages, clearInput, nextImageIndex, nextFileIndex, setInsertedFileChips]);
 
   // 단순화된 메시지 제출 함수
   const submitMessage = useCallback(async () => {
@@ -659,7 +709,7 @@ export function ChatInput({
   }, [handleSubmit, isLoading, selectedTool, supportsVision, allMessages, prepareMessageSubmission]);
 
   // 간단한 내용 확인 - input prop 기반으로 통일
-  const hasContent = input.length > 0 || files.length > 0 || insertedImages.size > 0;
+  const hasContent = input.length > 0 || files.length > 0 || insertedImages.size > 0 || insertedFileChips.size > 0;
 
   // isInputExpanded 관련 코드 제거 - 전송 버튼 항상 하단 고정
 
@@ -1210,9 +1260,6 @@ export function ChatInput({
   // 언마운트 시 URL 정리 및 Safari 클래스 정리
   useEffect(() => {
     return () => {
-      // 모든 URL 정리
-      fileMap.forEach(({ url }) => URL.revokeObjectURL(url));
-      
       // Safari 클래스 정리
       document.body.classList.remove('safari-browser');
     };
@@ -1448,7 +1495,6 @@ export function ChatInput({
     const processedFiles = await Promise.all(
       filesToUpload.map(async (file) => {
         const fileId = generateUniqueId();
-        const url = URL.createObjectURL(file);
         
         // 파일 타입 결정
         const fileExt = file.name.split('.').pop()?.toLowerCase();
@@ -1501,60 +1547,28 @@ export function ChatInput({
           writable: false,
           enumerable: true
         });
-
-        // 🚀 URL 정보를 파일 객체에 추가 (중복 업로드 방지)
-        Object.defineProperty(file, 'url', {
-          value: url,
-          writable: false,
-          enumerable: true
-        });
         
         return {
-          file,
-          fileId,
-          url,
-          metadata
+          file
         };
       })
     );
-    
-    // 파일 맵 업데이트
-    setFileMap(prevMap => {
-      const newMap = new Map(prevMap);
-      processedFiles.forEach(({ fileId, file, url }) => {
-        newMap.set(fileId, { file, url, id: fileId, originalName: file.name } as any);
-      });
-      return newMap;
-    });
+
+    for (const { file } of processedFiles) {
+      const result = insertFileChipIntoContentEditable(file, (file as any).id);
+      if (result && (result as any).success && (result as any).chipId) {
+        Object.defineProperty(file, 'fileChipId', {
+          value: (result as any).chipId,
+          writable: true,
+          enumerable: true
+        });
+      }
+    }
 
     // 파일 배열 업데이트
     setFiles(prevFiles => {
       return [...prevFiles, ...processedFiles.map(({ file }) => file)];
     });
-  };
-
-  // 파일 제거
-  const removeFile = (fileToRemove: File) => {
-    // ID로 접근할 수 있도록 타입 확장
-    const fileId = (fileToRemove as any).id;
-    
-    // fileMap에서 제거하고 URL 해제
-    setFileMap(prevMap => {
-      const newMap = new Map(prevMap);
-      if (fileId && newMap.has(fileId)) {
-        const fileData = newMap.get(fileId);
-        if (fileData) {
-          // 성능 개선: URL.revokeObjectURL은 상태 업데이트 후 별도 실행
-          const urlToRevoke = fileData.url;
-          setTimeout(() => URL.revokeObjectURL(urlToRevoke), 0);
-          newMap.delete(fileId);
-        }
-      }
-      return newMap;
-    });
-
-    // files 배열에서 제거 (ID로 비교)
-    setFiles(prevFiles => prevFiles.filter(file => (file as any).id !== fileId));
   };
 
   // Agent 툴팁 호버 상태 관리
@@ -1646,9 +1660,6 @@ export function ChatInput({
         onSubmit={handleMessageSubmit} 
         className="flex flex-col gap-2 sticky bottom-0 bg-transparent p-1"
       >
-        
-        <FilePreview files={files} fileMap={fileMap} removeFile={removeFile} />
-  
         <ErrorToast show={showPDFError || globalShowPDFError} message={
           supportsPDFs 
             ? "This file type is not supported" 

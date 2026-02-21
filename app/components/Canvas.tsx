@@ -338,8 +338,8 @@ type CanvasProps = {
   userId?: string;
 };
 
-// ── CanvasBinaryFileView: Download card for binary files (pptx, xlsx, pdf, etc.) ──
-function CanvasBinaryFileView({ downloadUrl, filename }: { downloadUrl: string; filename: string }) {
+// ── CanvasBinaryFileView: Download card for binary files (pptx, xlsx, pdf, etc.) or text files stored as binary (content too long) ──
+function CanvasBinaryFileView({ downloadUrl, filename, contentTooLong }: { downloadUrl: string; filename: string; contentTooLong?: boolean }) {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
   const typeLabel: Record<string, string> = {
     pptx: 'PowerPoint', ppt: 'PowerPoint',
@@ -349,7 +349,7 @@ function CanvasBinaryFileView({ downloadUrl, filename }: { downloadUrl: string; 
     png: 'Image', jpg: 'Image', jpeg: 'Image', gif: 'Image', webp: 'Image',
     mp4: 'Video', mp3: 'Audio', wav: 'Audio',
   };
-  const label = typeLabel[ext] || 'Binary';
+  const label = contentTooLong ? 'Content too long to display' : (typeLabel[ext] || 'Binary');
 
   return (
     <div className="flex items-center gap-4 p-5 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
@@ -358,7 +358,7 @@ function CanvasBinaryFileView({ downloadUrl, filename }: { downloadUrl: string; 
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-(--foreground) truncate">{filename}</p>
-        <p className="text-xs text-(--muted)">{label} file (.{ext})</p>
+        <p className="text-xs text-(--muted)">{contentTooLong ? `${label}. Use Download to open the file.` : `${label} file (.${ext})`}</p>
       </div>
       <a
         href={downloadUrl}
@@ -509,7 +509,7 @@ export function CanvasReadFileView({
   mode?: 'edit' | 'preview';
 }) {
   const [fullContent, setFullContent] = useState<string | null>(null);
-  const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string } | null>(null);
+  const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string; contentTooLong?: boolean } | null>(null);
 
   const fetchFullContent = useCallback(async () => {
     if (!chatId || !entry.path) return;
@@ -518,7 +518,27 @@ export function CanvasReadFileView({
       if (res.ok) {
         const data = await res.json();
         if (data.isBinary && data.downloadUrl) {
-          setBinaryInfo({ downloadUrl: data.downloadUrl, filename: data.filename || entry.path.replace(/^.*\//, '') });
+          if (data.contentTooLong === true) {
+            try {
+              const longRes = await fetch(data.downloadUrl);
+              if (!longRes.ok) throw new Error();
+              const text = await longRes.text();
+              setFullContent(text);
+              setBinaryInfo(null);
+            } catch {
+              setBinaryInfo({
+                downloadUrl: data.downloadUrl,
+                filename: data.filename || entry.path.replace(/^.*\//, ''),
+                contentTooLong: true,
+              });
+              setFullContent(null);
+            }
+            return;
+          }
+          setBinaryInfo({
+            downloadUrl: data.downloadUrl,
+            filename: data.filename || entry.path.replace(/^.*\//, ''),
+          });
           setFullContent(null);
         } else {
           setFullContent(typeof data.content === 'string' ? data.content : null);
@@ -584,9 +604,9 @@ export function CanvasReadFileView({
     return Number.isFinite(min) ? min : undefined;
   }, [highlightLineNumbers]);
 
-  // Binary file – show download card
+  // Binary file (or text file stored as binary due to size) – show download card
   if (binaryInfo) {
-    return <CanvasBinaryFileView downloadUrl={binaryInfo.downloadUrl} filename={binaryInfo.filename} />;
+    return <CanvasBinaryFileView downloadUrl={binaryInfo.downloadUrl} filename={binaryInfo.filename} contentTooLong={binaryInfo.contentTooLong} />;
   }
 
   if (!entry.success && entry.error) {
@@ -596,7 +616,9 @@ export function CanvasReadFileView({
   const contentBlock = (
     <>
       {fullContent === null && !entry.content && (
-        <p className="text-sm text-(--muted)">Loading file…</p>
+        <div className="flex items-center justify-center py-12" style={{ color: 'var(--foreground)' }}>
+          <Loader2 className="w-8 h-8 animate-spin opacity-70" aria-hidden />
+        </div>
       )}
       {displayContent && !isCSV && (
         <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
