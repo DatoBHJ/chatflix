@@ -2589,9 +2589,14 @@ function MarkdownContentComponent({
   // Pre-process the content to handle LaTeX and escape currency dollar signs
   // LaTeX 렌더링 비활성화
   // •(U+2022) 등 유니코드 불릿을 마크다운 리스트(- )로 변환하여 올바른 ul/li 렌더링 보장
+  // remark-gfm이 리스트 항목 내 **볼드**(괄호/특수문자 포함)를 제대로 파싱하지 못하므로, ** → <strong> 전처리
   const processedContent = useMemo(() => {
     if (!content) return content;
-    return content.replace(/^(\s*)[•◦▪▸►]\s/gm, '$1- ');
+    let result = content.replace(/^(\s*)[•◦▪▸►]\s/gm, '$1- ');
+    // 볼드체 **...** → <strong>...</strong> (rehypeRaw로 HTML 통과)
+    const boldPattern = /\*\*((?:[^*]|\*(?!\*))+)\*\*/g;
+    result = result.replace(boldPattern, '<strong>$1</strong>');
+    return result;
   }, [content]);
 
   // Build message groups (arrays of segments). When segmentation is disabled, treat as a single group.
