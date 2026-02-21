@@ -564,8 +564,21 @@ Focus on being genuinely helpful and let the conversation flow naturally.`;
     const hasMultipleImageTools = selectedTools.filter(t => imageTools.includes(t)).length > 1;
     const hasMultipleSearchTools = selectedTools.filter(t => searchTools.includes(t)).length > 1;
     const hasMultipleVideoTools = selectedTools.filter(t => videoTools.includes(t)).length > 1;
+    const hasLinkReaderTool = selectedTools.includes('link_reader');
+    const hasBrowserObserveTool = selectedTools.includes('browser_observe');
     
     let searchToolSelectionStrategyAdded = false;
+
+    // link_reader + browser_observe 동시 선택 시: 최소 우선순위 가드
+    if (hasLinkReaderTool && hasBrowserObserveTool) {
+      toolSpecificPrompts.push(`
+### URL Reading Priority (CRITICAL)
+- For normal URL reading/summarization, use \`link_reader\` first.
+- If \`link_reader\` is technically successful but returns non-main content (e.g. captcha/challenge/login wall/home shell/boilerplate), treat it as insufficient and retry \`link_reader\`.
+- Retry \`link_reader\` up to 3 additional attempts before considering fallback.
+- Use \`browser_observe\` only after repeated link_reader insufficiency, and only for targeted extraction/scraping cases.
+      `);
+    }
     
     // 1. 검색 도구 선택 전략을 먼저 추가
     if (hasMultipleSearchTools) {
