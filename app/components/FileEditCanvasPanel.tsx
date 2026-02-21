@@ -111,7 +111,9 @@ export function FileEditCanvasPanel({
   const [fullContent, setFullContent] = useState<string | null>(null);
   const [binaryInfo, setBinaryInfo] = useState<{ downloadUrl: string; filename: string; contentTooLong?: boolean } | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [isFastClosing, setIsFastClosing] = useState(false);
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeRafRef = useRef<number | null>(null);
 
   const fetchFullContent = useCallback(async () => {
     if (!shouldFetchContent || !chatId || !entry.path) return;
@@ -198,8 +200,31 @@ export function FileEditCanvasPanel({
         clearTimeout(retryTimerRef.current);
         retryTimerRef.current = null;
       }
+      if (closeRafRef.current !== null && typeof window !== 'undefined') {
+        window.cancelAnimationFrame(closeRafRef.current);
+        closeRafRef.current = null;
+      }
     };
   }, []);
+
+  useEffect(() => {
+    setIsFastClosing(false);
+  }, [entry.path, entry.toolName, chatId]);
+
+  const requestClose = useCallback(() => {
+    if (isFastClosing) return;
+    setIsFastClosing(true);
+    if (typeof window === 'undefined') {
+      onClose();
+      return;
+    }
+    closeRafRef.current = window.requestAnimationFrame(() => {
+      closeRafRef.current = window.requestAnimationFrame(() => {
+        closeRafRef.current = null;
+        onClose();
+      });
+    });
+  }, [isFastClosing, onClose]);
 
   const isMarkdown = useMemo(() => !!entry.path?.toLowerCase().endsWith('.md'), [entry.path]);
   const isCSV = useMemo(() => isCSVPath(entry.path), [entry.path]);
@@ -230,21 +255,24 @@ export function FileEditCanvasPanel({
   }, [highlightLineNumbers]);
 
   const resolvedDisplayContent = useMemo(() => {
+    if (isFastClosing) return '';
     if (!fullContent) return '';
     if (!isMarkdown) return fullContent;
     return resolveMediaPlaceholders(fullContent, { ...mediaMaps, unresolvedPolicy: 'remove' });
-  }, [fullContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+  }, [isFastClosing, fullContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
 
   const resolvedDownloadContent = useMemo(() => {
+    if (isFastClosing) return '';
     if (!fullContent) return '';
     if (!isMarkdown) return fullContent;
     return resolveMediaPlaceholders(fullContent, { ...mediaMaps, unresolvedPolicy: 'remove', imageOutput: 'url' });
-  }, [fullContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
+  }, [isFastClosing, fullContent, isMarkdown, mediaMaps.linkMap, mediaMaps.imageMap, mediaMaps.videoMap]);
 
   const csvRows = useMemo(() => {
+    if (isFastClosing) return null;
     if (!isCSV || !fullContent) return null;
     return parseCSV(fullContent, entry.path);
-  }, [isCSV, fullContent, entry.path]);
+  }, [isFastClosing, isCSV, fullContent, entry.path]);
 
   const handleCopy = useCallback(() => {
     const text = binaryInfo?.downloadUrl ? binaryInfo.downloadUrl : resolvedDownloadContent;
@@ -270,6 +298,7 @@ export function FileEditCanvasPanel({
   const showActions = isReadOrGrep;
 
   const renderReadOrGrepBody = () => {
+    if (isFastClosing) return null;
     if (loading) {
       return (
         <div className="flex items-center justify-center py-12" style={{ color: 'var(--foreground)' }}>
@@ -361,10 +390,12 @@ export function FileEditCanvasPanel({
   };
 
   const mainBody = isDiffTool ? (
+    isFastClosing ? null : (
     <CanvasDiffView entry={entry} chatId={chatId} mediaMaps={mediaMaps} useGlassActionButtons />
+    )
   ) : isReadOrGrep ? (
     renderReadOrGrepBody()
-  ) : (
+  ) : isFastClosing ? null : (
     renderMetaBody()
   );
 
@@ -484,14 +515,14 @@ export function FileEditCanvasPanel({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-9999"
-      style={{ touchAction: 'none', overflow: 'hidden' }}
+      className="fixed inset-0 z-9999 transition-opacity duration-75"
+      style={{ touchAction: 'none', overflow: 'hidden', opacity: isFastClosing ? 0 : 1, pointerEvents: isFastClosing ? 'none' : 'auto' }}
     >
       {isMobile ? (
         <>
           <div
             className="fixed inset-0 bg-transparent"
-            onClick={onClose}
+            onClick={requestClose}
             style={{ touchAction: 'none' }}
           />
           <div
@@ -544,7 +575,7 @@ export function FileEditCanvasPanel({
           <div
             className="absolute inset-0 pointer-events-auto"
             style={{ backgroundColor: 'transparent', zIndex: 1 }}
-            onClick={onClose}
+            onClick={requestClose}
           />
           <div
             className="relative h-full w-full flex flex-col transform-gpu"
@@ -554,7 +585,7 @@ export function FileEditCanvasPanel({
             <button
               aria-label="Close"
               className="absolute top-3 right-3 rounded-full p-2 z-10 cursor-pointer transition-all duration-200 hover:scale-105 active:scale-95"
-              onClick={onClose}
+              onClick={requestClose}
               style={{
                 outline: '0 !important',
                 WebkitTapHighlightColor: 'transparent',
