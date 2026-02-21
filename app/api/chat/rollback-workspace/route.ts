@@ -27,9 +27,9 @@ export async function POST(req: NextRequest) {
         ? body.upToSequenceNumber
         : undefined;
 
-    if (!chatId || upToSequenceNumber === undefined || upToSequenceNumber < 1) {
+    if (!chatId || upToSequenceNumber === undefined || upToSequenceNumber < 0) {
       return NextResponse.json(
-        { error: 'chatId and upToSequenceNumber (positive integer) are required' },
+        { error: 'chatId and upToSequenceNumber (non-negative integer) are required' },
         { status: 400 }
       );
     }

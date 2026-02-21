@@ -638,7 +638,7 @@ export function useMessages(chatId: string, userId: string) {
       const rollbackRes = await fetch('/api/chat/rollback-workspace', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chatId: actualChatId, upToSequenceNumber: sequenceNumber }),
+        body: JSON.stringify({ chatId: actualChatId, upToSequenceNumber: Math.max(0, sequenceNumber - 1) }),
       });
       if (!rollbackRes.ok) {
         setIsRegenerating(false);
