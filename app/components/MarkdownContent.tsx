@@ -742,7 +742,8 @@ const splitSegmentByLineBreaks = (segment: string): string[] => {
           if (j + 1 >= lines.length || !/^(\s*)[-*+]/.test(lines[j + 1])) {
             break;
           }
-          listBlock.push(lineContent);
+          // 빈 줄을 리스트 블록에 포함하지 않음. 포함 시 마크다운 파서가 <li><p>...</p></li>로 렌더링하여
+          // 불릿(•)이 텍스트와 별도 줄에 표시되는 문제 발생
           j++;
           continue;
         }
@@ -2587,9 +2588,10 @@ function MarkdownContentComponent({
 
   // Pre-process the content to handle LaTeX and escape currency dollar signs
   // LaTeX 렌더링 비활성화
+  // •(U+2022) 등 유니코드 불릿을 마크다운 리스트(- )로 변환하여 올바른 ul/li 렌더링 보장
   const processedContent = useMemo(() => {
-    // return preprocessLaTeX(content);
-    return content; // LaTeX 전처리 없이 원본 반환
+    if (!content) return content;
+    return content.replace(/^(\s*)[•◦▪▸►]\s/gm, '$1- ');
   }, [content]);
 
   // Build message groups (arrays of segments). When segmentation is disabled, treat as a single group.
@@ -3712,17 +3714,17 @@ function MarkdownContentComponent({
       </blockquote>
     ),
     ul: ({ children, ...props }) => (
-      <ul {...props}>
+      <ul className="list-disc pl-0 my-2 space-y-0.5" {...props}>
         {children}
       </ul>
     ),
     ol: ({ children, ...props }) => (
-      <ol {...props}>
+      <ol className="list-decimal pl-0 my-2 space-y-0.5" {...props}>
         {children}
       </ol>
     ),
     li: ({ children, ...props }) => (
-      <li className="break-words" {...props}>
+      <li className="break-words [&>p]:m-0 [&>p]:inline [&>p]:leading-relaxed" {...props}>
         {highlightSearchTermInChildren(children, searchTerm, { messageType })}
       </li>
     ),
