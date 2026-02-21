@@ -3653,10 +3653,13 @@ export const getFileEditData = (message: UIMessage): FileEditData | null => {
         raw = next.data;
       }
     }
-    const path = raw?.path ?? part.input?.path ?? '';
+    const inputOrArgs = part.input ?? part.args;
+    const path = raw?.path ?? inputOrArgs?.path ?? '';
     const success = raw?.success === true;
     const error = typeof raw?.error === 'string' ? raw.error : undefined;
-    const content = typeof raw?.content === 'string' ? raw.content : undefined;
+    const content = typeof raw?.content === 'string' ? raw.content
+      : (toolName === 'write_file' && typeof inputOrArgs?.content === 'string' ? inputOrArgs.content
+      : undefined);
     const size = typeof raw?.size === 'number' ? raw.size : undefined;
     const entries = Array.isArray(raw?.entries)
       ? raw.entries
@@ -3674,8 +3677,8 @@ export const getFileEditData = (message: UIMessage): FileEditData | null => {
     const matches = Array.isArray(raw?.matches) ? raw.matches : undefined;
     const applied = typeof raw?.applied === 'number' ? raw.applied : undefined;
     const originalContent = raw?.originalContent !== undefined ? raw.originalContent : undefined;
-    const startLine = typeof raw?.startLine === 'number' ? raw.startLine : part.input?.startLine;
-    const endLine = typeof raw?.endLine === 'number' ? raw.endLine : part.input?.endLine;
+    const startLine = typeof raw?.startLine === 'number' ? raw.startLine : inputOrArgs?.startLine;
+    const endLine = typeof raw?.endLine === 'number' ? raw.endLine : inputOrArgs?.endLine;
 
     const entry: FileEditFileEntry = {
       toolName,
@@ -3686,7 +3689,7 @@ export const getFileEditData = (message: UIMessage): FileEditData | null => {
       error,
       size,
       entries,
-      input: part.input,
+      input: inputOrArgs,
       output,
       totalLines,
       truncated,

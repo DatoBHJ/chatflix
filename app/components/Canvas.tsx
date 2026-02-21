@@ -917,6 +917,8 @@ export function CanvasDiffView({
     ? (entry.content ?? entry.input?.content)
     : entry.content;
 
+  const isCSV = isCSVPath(entry.path);
+
   const originalContent: string | null = entry.originalContent !== undefined
     ? (entry.originalContent ?? null)
     : null;
@@ -1190,15 +1192,20 @@ export function CanvasDiffView({
   // Preview mode: show only final applied content (Select Text style container is provided by panel).
   if (mode === 'preview') {
     const finalContent = (finalDownloadContent || displayContent) ?? proposedContent ?? '';
+    const csvRows = isCSV && finalContent ? parseCSV(finalContent, entry.path) : null;
     return (
       <div className="p-4 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-        <CanvasPreviewMarkdown
-          isMainFile={true}
-          content={isMarkdown
-            ? resolvedFinalDownloadContent
-            : `\`\`\`${getLanguageFromPath(entry.path)}\n${finalContent}\n\`\`\``}
-          filePath={entry.path}
-        />
+        {isCSV && csvRows && csvRows.length > 0 ? (
+          <CsvTable rows={csvRows} />
+        ) : (
+          <CanvasPreviewMarkdown
+            isMainFile={true}
+            content={isMarkdown
+              ? resolvedFinalDownloadContent
+              : `\`\`\`${getLanguageFromPath(entry.path)}\n${finalContent}\n\`\`\``}
+            filePath={entry.path}
+          />
+        )}
       </div>
     );
   }
@@ -1214,6 +1221,8 @@ export function CanvasDiffView({
       ? resolveMediaPlaceholders(fallback, { ...mediaMaps, unresolvedPolicy: 'remove', imageOutput: 'url' })
       : fallback;
 
+    const fallbackCsvRows = isCSV && fallback ? parseCSV(fallback, entry.path) : null;
+
     return (
       <div>
         <div className="flex items-center gap-3 mb-8">
@@ -1225,12 +1234,16 @@ export function CanvasDiffView({
         </button>
       </div>
         <div className="p-6 rounded-xl border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-          <CanvasPreviewMarkdown
-            content={isMarkdown
-              ? resolvedFallback
-              : `\`\`\`${getLanguageFromPath(entry.path)}\n${fallback}\n\`\`\``}
-            filePath={entry.path}
-          />
+          {isCSV && fallbackCsvRows && fallbackCsvRows.length > 0 ? (
+            <CsvTable rows={fallbackCsvRows} />
+          ) : (
+            <CanvasPreviewMarkdown
+              content={isMarkdown
+                ? resolvedFallback
+                : `\`\`\`${getLanguageFromPath(entry.path)}\n${fallback}\n\`\`\``}
+              filePath={entry.path}
+            />
+          )}
         </div>
       </div>
     );
@@ -1278,23 +1291,38 @@ export function CanvasDiffView({
 
       <div className="rounded-lg border border-[color-mix(in_srgb,var(--foreground)_10%,transparent)] overflow-hidden">
         <div className="p-6 bg-[color-mix(in_srgb,var(--foreground)_2%,transparent)]">
-          <CanvasPreviewMarkdown
-            isMainFile={true}
-            content={
-              isMarkdown
-                ? `\`\`\`markdown\n${previewContent}\n\`\`\``
-                : `\`\`\`${getLanguageFromPath(entry.path)}\n${previewContent}\n\`\`\``
-            }
-            diffSegments={allSegments.length > 0 ? allSegments : undefined}
-            previewLineDiffMap={previewLineDiffMap}
-            rejectedBlocks={rejectedBlocks}
-            acceptedBlocks={acceptedBlocks}
-            onReject={handleReject}
-            onAccept={handleAccept}
-            onUndo={handleUndo}
-            onUndoAccept={handleUndoAccept}
-            filePath={entry.path}
-          />
+          {isCSV && previewContent ? (
+            (() => {
+              const mainCsvRows = parseCSV(previewContent, entry.path);
+              return mainCsvRows && mainCsvRows.length > 0 ? (
+                <CsvTable rows={mainCsvRows} />
+              ) : (
+                <CanvasPreviewMarkdown
+                  isMainFile={true}
+                  content={`\`\`\`text\n${previewContent}\n\`\`\``}
+                  filePath={entry.path}
+                />
+              );
+            })()
+          ) : (
+            <CanvasPreviewMarkdown
+              isMainFile={true}
+              content={
+                isMarkdown
+                  ? `\`\`\`markdown\n${previewContent}\n\`\`\``
+                  : `\`\`\`${getLanguageFromPath(entry.path)}\n${previewContent}\n\`\`\``
+              }
+              diffSegments={allSegments.length > 0 ? allSegments : undefined}
+              previewLineDiffMap={previewLineDiffMap}
+              rejectedBlocks={rejectedBlocks}
+              acceptedBlocks={acceptedBlocks}
+              onReject={handleReject}
+              onAccept={handleAccept}
+              onUndo={handleUndo}
+              onUndoAccept={handleUndoAccept}
+              filePath={entry.path}
+            />
+          )}
         </div>
       </div>
 
